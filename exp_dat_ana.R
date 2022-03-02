@@ -4,21 +4,21 @@ dir.dat <- '/home/pgrad2/2448355h/My_PhD_Project/00_Dataset'
 
 # name of Ruerto Rico rive dataset 
 riv.dat.fit.nam <- 'Puerto Rico Fit Dataset.dat'
-riv.dat.tes.nam <- 'Puerto Rico Test Data.dat'
+riv.dat.test.nam <- 'Puerto Rico Test Data.dat'
 
 # name of Leeds air pollution dataset
 pol.dat.fit.nam <- 'Leeds Fit Dataset.dat'
-pol.dat.tes.nam <- 'Leeds Test Dataset.dat'
+pol.dat.test.nam <- 'Leeds Test Dataset.dat'
 
 
 # load all datasets
 riv.dat.fit <- read.table(file.path(dir.dat,riv.dat.fit.nam), header=TRUE)
-riv.dat.tes <- read.table(file.path(dir.dat,riv.dat.tes.nam), header=TRUE)
-riv.dat <- rbind(riv.dat.fit,riv.dat.tes)
+riv.dat.test <- read.table(file.path(dir.dat,riv.dat.test.nam), header=TRUE)
+riv.dat <- rbind(riv.dat.fit,riv.dat.test)
 
 pol.dat.fit <- read.table(file.path(dir.dat,pol.dat.fit.nam), header=TRUE)
-pol.dat.tes <- read.table(file.path(dir.dat,pol.dat.tes.nam), header=TRUE)
-pol.dat <- rbind(pol.dat.fit,pol.dat.tes)
+pol.dat.test <- read.table(file.path(dir.dat,pol.dat.test.nam), header=TRUE)
+pol.dat <- rbind(pol.dat.fit,pol.dat.test)
 
 # exploratory plots
 riv1 <- riv.dat$V1
@@ -47,22 +47,29 @@ qecdf <- function(x){
   # Apply ecdf(X) to a random variable X
   # For repeated observations, ecdf remains constant is equal to the sequence's
   # last pse.ecdf
-  qua <- function(y){pse.ecdf[tail(which(x.sort==y),1)]} 
+  quan <- function(y){pse.ecdf[tail(which(x.sort==y),1)]} 
   
-  return(sapply(x,qua))
+  return(sapply(x,quan))
 }
 
-seq.tes <- c(5,6,5,6,7)
-qecdf(seq.tes)
+seq.test <- c(5,6,5,6,7)
+qecdf(seq.test)
 #0.4 0.8 0.4 0.8 1.0
 
-quantile(seq.tes,type=1)
+quantile(seq.test,type=1)
 #0%  25%  50%  75% 100% 
 #5    5    6    6    7 
 
 
+riv1.unif <- qecdf(riv1)
+riv2.unif <- qecdf(riv2)
+
 # plot transfromed into standard uniform distribution
-plot(qecdf(riv1), qecdf(riv2), main = "Weekly River Flow, mariginally uniform",
+plot(riv1.unif, riv2.unif, main = "Weekly River Flow, mariginally uniform",
      xlab = "Fajardo", ylab = "Espiritu Santu",
      pch = 19, frame = FALSE)
+
+
+
+
 
