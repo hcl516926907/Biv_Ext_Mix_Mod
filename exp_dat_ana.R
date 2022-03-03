@@ -120,4 +120,4 @@ plot(u.seq, chi.bar, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar',yli
 library(evd)
 chiplot(cbind(riv1,riv2))
 
-
+# test pull
