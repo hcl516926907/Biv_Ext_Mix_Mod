@@ -40,8 +40,8 @@ plot(log(riv1), log(riv2), main = "Weekly River Flow, log Scale",
 
 # find the quantile of the ecdf, i.e. applying F(X) to X
 my.ecdf <- function(x){
-  
-  ecdf <- rank(x,ties.method='max')/length(x)
+  #adjust to avoid having F(x)=1, according to p36 in cole's book.
+  ecdf <- rank(x,ties.method='max')/(length(x)+1)
   
   return(ecdf)
 }
