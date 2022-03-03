@@ -39,21 +39,15 @@ plot(log(riv1), log(riv2), main = "Weekly River Flow, log Scale",
 
 
 # find the quantile of the ecdf, i.e. applying F(X) to X
-qecdf <- function(x){
-  x.sort <- sort(x)
-  # ecdf without consideration of repeated observations
-  pse.ecdf <- 1:length(x)/length(x)
+my.ecdf <- function(x){
   
-  # Apply ecdf(X) to a random variable X
-  # For repeated observations, ecdf remains constant is equal to the sequence's
-  # last pse.ecdf
-  quan <- function(y){pse.ecdf[tail(which(x.sort==y),1)]} 
+  ecdf <- rank(x,ties.method='max')/length(x)
   
-  return(sapply(x,quan))
+  return(ecdf)
 }
 
 seq.test <- c(5,6,5,6,7)
-qecdf(seq.test)
+my.ecdf(seq.test)
 #0.4 0.8 0.4 0.8 1.0
 
 quantile(seq.test,type=1)
@@ -61,8 +55,8 @@ quantile(seq.test,type=1)
 #5    5    6    6    7 
 
 
-riv1.unif <- qecdf(riv1)
-riv2.unif <- qecdf(riv2)
+riv1.unif <- my.ecdf(riv1)
+riv2.unif <- my.ecdf(riv2)
 
 # qqplot to compare two margins
 qqplot(riv1.unif, riv2.unif)
