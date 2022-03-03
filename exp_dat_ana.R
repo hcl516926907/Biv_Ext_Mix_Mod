@@ -64,11 +64,16 @@ quantile(seq.test,type=1)
 riv1.unif <- qecdf(riv1)
 riv2.unif <- qecdf(riv2)
 
-# plot transfromed into standard uniform distribution
+# qqplot to compare two margins
+qqplot(riv1.unif, riv2.unif)
+# compare margins with a standard uniform distribution
+qqplot(runif(length(riv1.unif)), riv1.unif)
+qqplot(runif(length(riv2.unif)), riv2.unif)
+
+# plot with margins transfromed into standard uniform distribution
 plot(riv1.unif, riv2.unif, main = "Weekly River Flow, mariginally uniform",
      xlab = "Fajardo", ylab = "Espiritu Santu",
      pch = 19, frame = FALSE)
-
 
 
 u.seq <- seq(0,1,0.01)
