@@ -110,4 +110,3 @@ plot(u.seq, chi, type='l', main="Chi Plot", xlab='u', ylab='chi')
 chi.bar <- 2*log(coef.tab['x.p.1',])/(log(coef.tab['p.1.1',]*coef.tab['y.p.1',]))-1
 plot(u.seq, chi.bar, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar')
 
-ddd
