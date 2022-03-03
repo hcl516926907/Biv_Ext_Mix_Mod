@@ -75,8 +75,8 @@ plot(riv1.unif, riv2.unif, main = "Weekly River Flow, mariginally uniform",
      xlab = "Fajardo", ylab = "Espiritu Santu",
      pch = 19, frame = FALSE)
 
-
-u.seq <- seq(0,1,0.01)
+step.size <- 0.01
+u.seq <- seq(step.size, 1-step.size, step.size)
 u <- 0.99
 
 tail.coef <- function(x,y,u){
@@ -109,9 +109,15 @@ tail.coef(riv1.unif,riv2.unif,u)
 
 coef.tab <- sapply(u.seq, tail.coef, x=riv1.unif, y=riv2.unif)
 
-chi <- coef.tab['p.1.1',]
-plot(u.seq, chi, type='l', main="Chi Plot", xlab='u', ylab='chi')
+
+chi <- 2 - log(coef.tab['p.0.0',]*coef.tab['y.p.0',])/log(coef.tab['x.p.0',])
+plot(u.seq, chi, type='l', main="Chi Plot", xlab='u', ylab='chi', ylim=c(0,1))
 
 chi.bar <- 2*log(coef.tab['x.p.1',])/(log(coef.tab['p.1.1',]*coef.tab['y.p.1',]))-1
-plot(u.seq, chi.bar, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar')
+plot(u.seq, chi.bar, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar',ylim=c(-1,1))
+
+
+library(evd)
+chiplot(cbind(riv1,riv2))
+
 
