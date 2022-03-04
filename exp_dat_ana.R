@@ -127,3 +127,4 @@ lines(u.seq, chib.low, type = "l", lty = 2, pch = 18)
 library(evd)
 chiplot(cbind(riv1,riv2))
 
+#show github
