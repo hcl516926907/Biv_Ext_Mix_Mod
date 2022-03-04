@@ -10,7 +10,6 @@ riv.dat.test.nam <- 'Puerto Rico Test Data.dat'
 pol.dat.fit.nam <- 'Leeds Fit Dataset.dat'
 pol.dat.test.nam <- 'Leeds Test Dataset.dat'
 
-
 # load all datasets
 riv.dat.fit <- read.table(file.path(dir.dat,riv.dat.fit.nam), header=TRUE)
 riv.dat.test <- read.table(file.path(dir.dat,riv.dat.test.nam), header=TRUE)
@@ -37,12 +36,10 @@ plot(log(riv1), log(riv2), main = "Weekly River Flow, log Scale",
      xlab = "Fajardo", ylab = "Espiritu Santu",
      pch = 19, frame = FALSE)
 
-
 # find the quantile of the ecdf, i.e. applying F(X) to X
 my.ecdf <- function(x){
   #adjust to avoid having F(x)=1, according to p36 in cole's book.
   ecdf <- rank(x,ties.method='max')/(length(x)+1)
-  
   return(ecdf)
 }
 
@@ -53,7 +50,6 @@ my.ecdf(seq.test)
 quantile(seq.test,type=1)
 #0%  25%  50%  75% 100% 
 #5    5    6    6    7 
-
 
 riv1.unif <- my.ecdf(riv1)
 riv2.unif <- my.ecdf(riv2)
@@ -86,28 +82,29 @@ tail.coef <- function(x,y,u){
   y.p.0 <- length(y.0)/n
   y.p.1 <- length(y.1)/n
   
-  p.0.0 <- length(intersect(x.0,y.0))/length(y.0)
-  p.0.1 <- length(intersect(x.0,y.1))/length(y.1)
-  p.1.0 <- length(intersect(x.1,y.0))/length(y.0)
-  p.1.1 <- length(intersect(x.1,y.1))/length(y.1)
+  #conditional distribution
+  p.0c0 <- length(intersect(x.0,y.0))/length(y.0)
+  p.0c1 <- length(intersect(x.0,y.1))/length(y.1)
+  p.1c0 <- length(intersect(x.1,y.0))/length(y.0)
+  p.1c1 <- length(intersect(x.1,y.1))/length(y.1)
   
   res <- c(x.p.0, x.p.1, y.p.0, y.p.1,
-           p.0.0, p.0.1, p.1.0, p.1.1)
+           p.0c0, p.0c1, p.1c0, p.1c1)
+  
   names(res) <- c('x.p.0', 'x.p.1', 'y.p.0', 'y.p.1',
-                  'p.0.0', 'p.0.1', 'p.1.0', 'p.1.1')
+                  'p.0c0', 'p.0c1', 'p.1c0', 'p.1c1')
   return(res)
 }
 
 tail.coef(riv1.unif,riv2.unif,u)
-
-
 coef.tab <- sapply(u.seq, tail.coef, x=riv1.unif, y=riv2.unif)
 
-
-chi <- 2 - log(coef.tab['p.0.0',]*coef.tab['y.p.0',])/log(coef.tab['x.p.0',])
+p.0j0 <- coef.tab['p.0c0',]*coef.tab['y.p.0',]
+chi <- 2 - log(p.0j0)/log(u.seq)
 plot(u.seq, chi, type='l', main="Chi Plot", xlab='u', ylab='chi', ylim=c(0,1))
 
-chi.bar <- 2*log(coef.tab['x.p.1',])/(log(coef.tab['p.1.1',]*coef.tab['y.p.1',]))-1
+p.1j1 <- coef.tab['p.1c1',]*coef.tab['y.p.1',]
+chi.bar <- 2*log(1-u.seq)/(log(p.1j1))-1
 plot(u.seq, chi.bar, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar',ylim=c(-1,1))
 
 
