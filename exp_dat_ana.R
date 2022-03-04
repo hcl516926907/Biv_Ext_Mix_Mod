@@ -99,9 +99,19 @@ tail.coef <- function(x,y,u){
 tail.coef(riv1.unif,riv2.unif,u)
 coef.tab <- sapply(u.seq, tail.coef, x=riv1.unif, y=riv2.unif)
 
+conf <- 0.95
 p.0j0 <- coef.tab['p.0c0',]*coef.tab['y.p.0',]
+
 chi <- 2 - log(p.0j0)/log(u.seq)
-plot(u.seq, chi, type='l', main="Chi Plot", xlab='u', ylab='chi', ylim=c(0,1))
+# detla method
+chi.var <- p.0j0*(1-p.0j0)*(1/(p.0j0*log(u.seq)))^2/length(riv1.unif)
+chi.sd <- sqrt(chi.var)
+upp.bond <- chi + qnorm((1+conf)/2)*chi.sd
+low.bond <- chi + qnorm((1-conf)/2)*chi.sd
+plot(u.seq, chi, type='l', main="Chi Plot", xlab='u', ylab='chi', ylim=c(0,1),frame = FALSE)
+# confidence interval
+lines(u.seq, upp.bond, type = "l", lty = 2, pch = 18)
+lines(u.seq, low.bond, type = "l", lty = 2, pch = 18)
 
 p.1j1 <- coef.tab['p.1c1',]*coef.tab['y.p.1',]
 chi.bar <- 2*log(1-u.seq)/(log(p.1j1))-1
@@ -111,4 +121,3 @@ plot(u.seq, chi.bar, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar',yli
 library(evd)
 chiplot(cbind(riv1,riv2))
 
-# test pull
