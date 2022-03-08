@@ -31,10 +31,18 @@ plot(riv1, riv2, main = "Weekly River Flow, Original Scale",
      xlab = "Fajardo", ylab = "Espiritu Santu",
      pch = 19, frame = FALSE)
 
+# marginally density plot on original scale
+plot(density(riv1), main = "Density of Fajardo, Original Scale")
+plot(density(riv2), main = "Density of Espiritu Santu, Original Scale")
+
 # plot in log scale
 plot(log(riv1), log(riv2), main = "Weekly River Flow, log Scale",
      xlab = "Fajardo", ylab = "Espiritu Santu",
      pch = 19, frame = FALSE)
+
+# marginally density plot on log scale
+plot(density(log(riv1)), main = "Density of Fajardo, Log Scale")
+plot(density(log(riv2)), main = "Density of Espiritu Santu, Log Scale")
 
 # find the quantile of the ecdf, i.e. applying F(X) to X
 my.ecdf <- function(x){
