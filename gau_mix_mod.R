@@ -1,4 +1,6 @@
 library(mixtools)
+library(plotmm)
+library(ggplot2)
 
 # data directory
 dir.dat <- '/home/pgrad2/2448355h/My_PhD_Project/00_Dataset'
@@ -17,31 +19,87 @@ riv.dat.test <- read.table(file.path(dir.dat,riv.dat.test.nam), header=TRUE)
 riv.dat <- rbind(riv.dat.fit,riv.dat.test)
 
 
+#--------------------fit on original scale------------------------
+mu.2com <- list(c(84,80),c(162,183))
+sigma.2com <- list(diag(c(200,250)),diag(c(500,550)))
+
+mod.org.2com <- mvnormalmixEM(riv.dat, mu = mu.2com,
+              sigma = sigma.2com, epsilon = 1e-02)
+
+mod.org.2com.dm <- mvnormalmixEM(riv.dat, sigma = sigma.2com, epsilon = 1e-02)
+mod.org.2com.ds <- mvnormalmixEM(riv.dat,mu = mu.2com, epsilon = 1e-02)
+
+mod.org.2com[2:5]
+
+mod.org.3com <- mvnormalmixEM(riv.dat, k=3, epsilon = 1e-02)
+
+vis.mm <- function(mod){
+component_colors <- c("red", "blue", "green", "yellow", "orange", 
+                      "purple", "darksalmon", "goldenrod2", "dodgerblue", "darkorange3", 
+                      "burlywood4", "darkmagenta", "firebrick", "deeppink2", 
+                      "darkseagreen1")
+m <- mod
+k <- length(m$mu)
+x <- data.frame(m$x)
+mean <- m$mu
+sigma <- m$sigma
+X_1 <- x[, 1]
+X_2 <- x[, 2]
+post <- m$posterior
+out_plot <- ggplot2::qplot(x = X_1, y = X_2) + 
+            ggplot2::geom_point(colour = "darkgray", fill = "lightgray", size = 0.7) + 
+            ggplot2::theme_minimal()
+
+for (i in 1:k) {
+  if(is.list(mean)){
+    # mean is different
+    p <- data.frame(t(data.frame(mean[[i]])))    
+  }else{
+    # mean is equal
+    p <- data.frame(t(data.frame(mean)))  
+  }
+  
+  if(is.list(mean)&is.list(sigma)){
+    # mean and sigma are both different
+    e <- data.frame(mixtools::ellipse(mean[[i]], sigma[[i]], newplot = FALSE, npoints = 500))
+  } else if(is.list(mean)&(!is.list(sigma))){
+    # mean is different while sigma is equal
+    e <- data.frame(mixtools::ellipse(mean[[i]], sigma, newplot = FALSE, npoints = 500))  
+  }else if((!is.list(mean))&is.list(sigma)){
+    # mean is equal while sigma is different
+    e <- data.frame(mixtools::ellipse(mean, sigma[[i]], newplot = FALSE, npoints = 500))    
+  }else{print('error')}
+  out_plot <- out_plot + ggplot2::geom_point(data = p, 
+                                             ggplot2::aes(x = X1, y = X2), colour = "black", 
+                                             size = 0.7) +
+    ggplot2::geom_point(data = e, 
+                        ggplot2::aes(x = X1, y = X2), 
+                        colour = component_colors[i], size = 0.3) +
+    ggplot2::theme_minimal()
+}
+return(out_plot)
+}
 
 
-set.seed(100)
-x.1 <- rmvnorm(40, c(0, 0))
-x.2 <- rmvnorm(60, c(3, 4))
-plot(X.1[,1],X.1[,2])
-X.1 <- rbind(x.1, x.2)
-mu <- list(c(0, 0), c(3, 4))
-out.1 <- mvnormalmixEM(X.1, arbvar = FALSE, mu = mu,
-                       epsilon = 1e-02)
-out.1[2:5]
-##Fitting randomly generated data with a 2-component scale mixture of bivariate normals.
-x.3 <- rmvnorm(40, c(0, 0), sigma =
-                 matrix(c(200, 1, 1, 150), 2, 2))
-x.4 <- rmvnorm(60, c(0, 0))
-X.2 <- rbind(x.3, x.4)
-plot(X.2[,1],X.2[,2])
-lambda <- c(0.40, 0.60)
-sigma <- list(diag(1, 2), matrix(c(200, 1, 1, 150), 2, 2))
-out.2 <- mvnormalmixEM(X.2, arbmean = FALSE,
-                       sigma = sigma, lambda = lambda,
-                       epsilon = 1e-02)
-out.2[2:5]
+vis.mm(mod.org.2com)
+vis.mm(mod.org.2com.dm)
+vis.mm(mod.org.2com.ds)
 
-summary(out.2)
-plot(out.2)
+vis.mm(mod.org.3com)
 
 
+#--------------------fit on log scale------------------------
+
+mu.log.2com <- lapply(mu.2com,log)
+mod.log.2com <- mvnormalmixEM(log(riv.dat), k=2,
+                              epsilon = 1e-02)
+
+mod.log.2com[2:5]
+vis.mm(mod.log.2com)
+
+
+mod.log.3com <- mvnormalmixEM(log(riv.dat), k=3,
+                              epsilon = 1e-02)
+
+mod.log.3com[2:5]
+vis.mm(mod.log.3com)
