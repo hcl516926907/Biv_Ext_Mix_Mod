@@ -62,13 +62,13 @@ for (i in 1:k) {
   
   if(is.list(mean)&is.list(sigma)){
     # mean and sigma are both different
-    e <- data.frame(mixtools::ellipse(mean[[i]], sigma[[i]], newplot = FALSE, npoints = 500))
+    e <- data.frame(mixtools::ellipse(mean[[i]], sigma[[i]], newplot = TRUE, npoints = 500))
   } else if(is.list(mean)&(!is.list(sigma))){
     # mean is different while sigma is equal
-    e <- data.frame(mixtools::ellipse(mean[[i]], sigma, newplot = FALSE, npoints = 500))  
+    e <- data.frame(mixtools::ellipse(mean[[i]], sigma, newplot = TRUE, npoints = 500))  
   }else if((!is.list(mean))&is.list(sigma)){
     # mean is equal while sigma is different
-    e <- data.frame(mixtools::ellipse(mean, sigma[[i]], newplot = FALSE, npoints = 500))    
+    e <- data.frame(mixtools::ellipse(mean, sigma[[i]], newplot = TRUE, npoints = 500))    
   }else{print('error')}
   out_plot <- out_plot + ggplot2::geom_point(data = p, 
                                              ggplot2::aes(x = X1, y = X2), colour = "black", 
@@ -82,7 +82,7 @@ return(out_plot)
 }
 
 
-gmm.sp <- function(mod, n=1000){
+gmm.sp <- function(mod, n=5000){
   mean <- mod$mu
   sigma <- mod$sigma
   lambda <- mod$lambda
@@ -90,20 +90,24 @@ gmm.sp <- function(mod, n=1000){
   # realization of lambda by mutinomial distribution
   lbd.sp <- t(rmultinom(n, 1, lambda))
   mvn.sp <- c()
+  sp.len <- c()
   for (i in 1:k){
     mvn.sp.k <- mvtnorm::rmvnorm(n, mean=mean[[i]],sigma=sigma[[i]])
     lbd.sp.k <- lbd.sp[,i]
     mvn.sp <- rbind(mvn.sp, mvn.sp.k[lbd.sp.k==1,]) 
+    sp.len <- c(sp.len, nrow(mvn.sp.k[lbd.sp.k==1,]))
   }
   # labels for the group from which the sample are generated 
-  lab.sp <- apply(lbd.sp, 1, function(x) which(x %in% 1))
+  lab.sp <- rep(1:k, times=sp.len)
 return(list('mvn.sp'=mvn.sp, 'lab.sp'=lab.sp))
 }
+
 
 apply(lbd.sp, 1, function(x) which(x %in% 1))
 
 vis.mm(mod.org.2com)
-mod.org.2com.sp <- gmm.sp(mod.org.2com,n=5000)
+
+mod.org.2com.sp <- gmm.sp(mod.org.2com)
 plot(mod.org.2com.sp$mvn.sp, col=mod.org.2com.sp$lab.sp,cex=2,pch=".")
 ellipse(mod.org.2com$mu[[1]], mod.org.2com$sigma[[1]])
 ellipse(mod.org.2com$mu[[2]], mod.org.2com$sigma[[2]])
@@ -112,11 +116,10 @@ ellipse(mod.org.2com$mu[[2]], mod.org.2com$sigma[[2]])
 vis.mm(mod.org.2com.dm)
 
 vis.mm(mod.org.2com.ds)
-plot(gmm.sp(mod.org.2com.ds))
 
 vis.mm(mod.org.3com)
 mod.org.3com.sp <- gmm.sp(mod.org.3com)
-plot(mod.org.3com.sp$mvn.sp, col=mod.org.3com.sp$lab.sp)
+plot(mod.org.3com.sp$mvn.sp, col=mod.org.3com.sp$lab.sp,cex=2,pch=".")
 
 #--------------------fit on log scale------------------------
 
@@ -126,9 +129,12 @@ mod.log.2com <- mvnormalmixEM(log(riv.dat), k=2,
 
 mod.log.2com[2:5]
 vis.mm(mod.log.2com)
-plot(gmm.sp(mod.log.2com))
+mod.log.2com.sp <- gmm.sp(mod.log.2com, n=5000)
+plot(mod.log.2com.sp$mvn.sp, col=mod.log.2com.sp$lab.sp, cex=2,pch=".")
 
-#mod.log.3com <- mvnormalmixEM(log(riv.dat), k=3, epsilon = 1e-02)
+mod.log.3com <- mvnormalmixEM(log(riv.dat), k=3, epsilon = 1e-02)
 
-#mod.log.3com[2:5]
-#vis.mm(mod.log.3com)
+mod.log.3com[2:5]
+vis.mm(mod.log.3com)
+mod.log.3com.sp <- gmm.sp(mod.log.3com, n=5000)
+plot(mod.log.3com.sp$mvn.sp, col=mod.log.3com.sp$lab.sp, cex=2,pch=".")
