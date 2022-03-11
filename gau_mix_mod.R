@@ -138,3 +138,6 @@ mod.log.3com[2:5]
 vis.mm(mod.log.3com)
 mod.log.3com.sp <- gmm.sp(mod.log.3com, n=5000)
 plot(mod.log.3com.sp$mvn.sp, col=mod.log.3com.sp$lab.sp, cex=2,pch=".")
+
+
+dgfdgf
