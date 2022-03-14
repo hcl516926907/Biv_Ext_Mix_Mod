@@ -9,7 +9,7 @@ my.ecdf <- function(x){
 }
 
 
-
+# four tail dependence coefficients
 tail.coef <- function(x,y,u){
   n <- length(x)
   
