@@ -2,7 +2,11 @@ library(mixtools)
 library(plotmm)
 library(ggplot2)
 library(mvtnorm)
+library(evd)
+library(matrixStats)
 
+
+source('func_tools.R')
 # data directory
 dir.dat <- '/home/pgrad2/2448355h/My_PhD_Project/00_Dataset'
 
@@ -34,6 +38,7 @@ mod.org.2com[2:5]
 
 mod.org.3com <- mvnormalmixEM(riv.dat, k=3, epsilon = 1e-02)
 
+# visualize fitted model with ellipses with estimated mean and variance
 vis.mm <- function(mod){
 component_colors <- c("red", "blue", "green", "yellow", "orange", 
                       "purple", "darksalmon", "goldenrod2", "dodgerblue", "darkorange3", 
@@ -81,7 +86,7 @@ for (i in 1:k) {
 return(out_plot)
 }
 
-
+# generated samples from estimated Gaussian mixture models
 gmm.sp <- function(mod, n=5000){
   mean <- mod$mu
   sigma <- mod$sigma
@@ -102,24 +107,83 @@ gmm.sp <- function(mod, n=5000){
 return(list('mvn.sp'=mvn.sp, 'lab.sp'=lab.sp))
 }
 
-
-apply(lbd.sp, 1, function(x) which(x %in% 1))
-
+# visualize fitted model
 vis.mm(mod.org.2com)
 
+# visualize simulated samples
 mod.org.2com.sp <- gmm.sp(mod.org.2com)
 plot(mod.org.2com.sp$mvn.sp, col=mod.org.2com.sp$lab.sp,cex=2,pch=".")
 ellipse(mod.org.2com$mu[[1]], mod.org.2com$sigma[[1]])
 ellipse(mod.org.2com$mu[[2]], mod.org.2com$sigma[[2]])
 
+# generate values for simulated 
+simu.depd.plot <- function(x, y, u.seq, is.plot=TRUE){
+  unif1 <- my.ecdf(x)
+  unif2 <- my.ecdf(y)
+  
+  coef.tab <- sapply(u.seq, tail.coef, x=unif1, y=unif2)
+  
+  p.0j0 <- coef.tab['p.0c0',]*coef.tab['y.p.0',]
+  chi <- 2 - log(p.0j0)/log(u.seq)
+  
+  p.1j1 <- coef.tab['p.1c1',]*coef.tab['y.p.1',]
+  chib <- 2*log(1-u.seq)/(log(p.1j1))-1
+  
+  if (is.plot==TRUE){
+    plot(u.seq, chi, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar',ylim=c(-1,1))
+    plot(u.seq, chib, type='l', main="Chi Bar Plot", xlab='u', ylab='chi bar',ylim=c(-1,1))
+  }
+  return(list('chi'= chi,'chib'=chib))
+} 
 
+
+N.simu <- 500
+df.chi <- c()
+df.chib <- c()
+step.size=0.005
+u.seq <- seq(step.size, 1-step.size, step.size)
+
+
+for (i in 1:N.simu){
+  data.simu <- gmm.sp(mod.org.2com)$mvn.sp
+  data.plot <- simu.depd.plot(data.simu[,1],data.simu[,2],u.seq,is.plot=FALSE)
+  df.chi <- cbind(df.chi, data.plot$chi)
+  df.chib <- cbind(df.chib, data.plot$chib)
+}
+
+riv1.unif <- my.ecdf(riv.dat$V1)
+riv2.unif <- my.ecdf(riv.dat$V2)
+coef.tab <- sapply(u.seq, tail.coef, x=riv1.unif, y=riv2.unif)
+p.0j0 <- coef.tab['p.0c0',]*coef.tab['y.p.0',]
+chi <- 2 - log(p.0j0)/log(u.seq)
+p.1j1 <- coef.tab['p.1c1',]*coef.tab['y.p.1',]
+chib <- 2*log(1-u.seq)/(log(p.1j1))-1
+
+plot(u.seq, rowMeans(df.chi), type='l', main="Chi Plot for original scale model", xlab='u', ylab='chi bar',ylim=c(-1,1))
+lines(u.seq,rowQuantiles(df.chi, probs=0.975),type = "l", lty = 2, pch = 18)
+lines(u.seq,rowQuantiles(df.chi, probs=0.025),type = "l", lty = 2, pch = 18)
+lines(u.seq,chi,type = "l", lty = 1, col=2)
+legend(x = "bottomleft", legend=c("Mean of simulated chi", "95% confidence interval", "True chi"),
+       col=c("black","black", "red"), lty=c(1,2,1), cex=0.8,
+       box.lty=0)
+
+plot(u.seq, rowMeans(df.chib), type='l', main="Chi Bar Plot for original scale model", xlab='u', ylab='chi bar',ylim=c(-1,1))
+lines(u.seq,rowQuantiles(df.chib, probs=0.975),type = "l", lty = 2, pch = 18)
+lines(u.seq,rowQuantiles(df.chib, probs=0.025),type = "l", lty = 2, pch = 18)
+lines(u.seq,chib,type = "l", lty = 1, col=2)
+legend(x = "bottomleft", legend=c("Mean of simulated chi bar", "95% confidence interval", "True chi bar"),
+       col=c("black","black", "red"), lty=c(1,2,1), cex=0.8,
+       box.lty=0)
+
+
+# visualization for other model versions
 vis.mm(mod.org.2com.dm)
-
 vis.mm(mod.org.2com.ds)
 
 vis.mm(mod.org.3com)
 mod.org.3com.sp <- gmm.sp(mod.org.3com)
 plot(mod.org.3com.sp$mvn.sp, col=mod.org.3com.sp$lab.sp,cex=2,pch=".")
+
 
 #--------------------fit on log scale------------------------
 
@@ -140,4 +204,3 @@ mod.log.3com.sp <- gmm.sp(mod.log.3com, n=5000)
 plot(mod.log.3com.sp$mvn.sp, col=mod.log.3com.sp$lab.sp, cex=2,pch=".")
 
 
-dgfdgf
