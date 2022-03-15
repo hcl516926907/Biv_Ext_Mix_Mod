@@ -1,5 +1,4 @@
 library(mixtools)
-library(plotmm)
 library(ggplot2)
 library(mvtnorm)
 library(evd)
