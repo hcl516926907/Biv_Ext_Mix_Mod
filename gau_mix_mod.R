@@ -195,6 +195,42 @@ vis.mm(mod.log.2com)
 mod.log.2com.sp <- gmm.sp(mod.log.2com, n=5000)
 plot(mod.log.2com.sp$mvn.sp, col=mod.log.2com.sp$lab.sp, cex=2,pch=".")
 
+N.simu <- 500
+df.chi <- c()
+df.chib <- c()
+step.size=0.005
+u.seq <- seq(step.size, 1-step.size, step.size)
+
+
+for (i in 1:N.simu){
+  data.simu <- gmm.sp(mod.log.2com)$mvn.sp
+  data.plot <- simu.depd.plot(data.simu[,1],data.simu[,2],u.seq,is.plot=FALSE)
+  df.chi <- cbind(df.chi, data.plot$chi)
+  df.chib <- cbind(df.chib, data.plot$chib)
+}
+
+
+plot(u.seq, rowMeans(df.chi), type='l', main="Chi Plot for log scale model", xlab='u', ylab='chi bar',ylim=c(-1,1))
+lines(u.seq,rowQuantiles(df.chi, probs=0.975),type = "l", lty = 2, pch = 18)
+lines(u.seq,rowQuantiles(df.chi, probs=0.025),type = "l", lty = 2, pch = 18)
+lines(u.seq,chi,type = "l", lty = 1, col=2)
+legend(x = "bottomleft", legend=c("Mean of simulated chi", "95% confidence interval", "True chi"),
+       col=c("black","black", "red"), lty=c(1,2,1), cex=0.8,
+       box.lty=0)
+
+plot(u.seq, rowMeans(df.chib), type='l', main="Chi Bar Plot for log scale model", xlab='u', ylab='chi bar',ylim=c(-1,1))
+lines(u.seq,rowQuantiles(df.chib, probs=0.975),type = "l", lty = 2, pch = 18)
+lines(u.seq,rowQuantiles(df.chib, probs=0.025),type = "l", lty = 2, pch = 18)
+lines(u.seq,chib,type = "l", lty = 1, col=2)
+legend(x = "bottomleft", legend=c("Mean of simulated chi bar", "95% confidence interval", "True chi bar"),
+       col=c("black","black", "red"), lty=c(1,2,1), cex=0.8,
+       box.lty=0)
+
+
+
+
+
+
 mod.log.3com <- mvnormalmixEM(log(riv.dat), k=3, epsilon = 1e-02)
 
 mod.log.3com[2:5]
