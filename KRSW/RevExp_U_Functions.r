@@ -433,8 +433,8 @@ fit.MGPD.RevExpU<-function(x, u, std=FALSE, dep.scale.fix=FALSE, dep.loc.fix=FAL
     mle<-opt$minimum
     nll<-opt$objective
     conv<-NULL
+    hess<-NULL
     warn<-NULL
-    
   }
   return(list(mle=mle,nll=nll,conv=conv,hess=hess,warn=warn))
 }

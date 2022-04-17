@@ -117,9 +117,9 @@ fit1.2<-fit.MGPD.RevExpU(x=xeb2, u=rep(0,2), std=T, dep.scale.fix=F, dep.loc.fix
 fit1.2
 
 # Single scale parameter, fixed location
-fit1.3<-fit.MGPD.RevExpU(x=xeb2, u=rep(0,2), std=T, dep.scale.fix=T, dep.loc.fix=T,hessian=TRUE)
+fit1.3<-fit.MGPD.RevExpU(x=xeb2, u=rep(0,2), std=T, dep.scale.fix=T, dep.loc.fix=T)
 fit1.3
-fit1.3<-fit.MGPD.RevExpU(x=xeb2, u=rep(0,2), std=T, dep.scale.fix=T, dep.loc.fix=T, dep.start = fit1.3$mle, hessian=TRUE)
+fit1.3<-fit.MGPD.RevExpU(x=xeb2, u=rep(0,2), std=T, dep.scale.fix=T, dep.loc.fix=T, dep.start = fit1.3$mle)
 fit1.3
 
 1-pchisq(2*(fit1.1$nll-fit1$nll), df=1)
