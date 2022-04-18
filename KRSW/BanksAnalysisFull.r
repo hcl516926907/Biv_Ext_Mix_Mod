@@ -3,8 +3,8 @@
 ###############################################################################################
 
 
-HSBC<-scan("Data/HSBCW_Adj_Oct16.txt")
-HSBCDates<-read.table("Data/HSBCWDates_Adj_Oct16.txt")
+HSBC<-scan("KRSW/HSBCW_Adj_Oct16.txt")
+HSBCDates<-read.table("KRSW/HSBCWDates_Adj_Oct16.txt")
 HSBCDates<-as.character(HSBCDates[,1])
 HSBCDates<-as.Date(c(HSBCDates),format="%Y-%m-%d")
 plot(HSBCDates,HSBC)
@@ -14,8 +14,8 @@ HSBCDates<-HSBCDates[-length(HSBCDates)]
 plot(HSBCDates,HSBCR)
 
 
-Lloyds<-scan("Data/LloydsW_Adj_Oct16.txt")
-LloydsDates<-read.table("Data/LloydsWDates_Adj_Oct16.txt")
+Lloyds<-scan("KRSW/LloydsW_Adj_Oct16.txt")
+LloydsDates<-read.table("KRSW/LloydsWDates_Adj_Oct16.txt")
 LloydsDates<-as.character(LloydsDates[,1])
 LloydsDates<-as.Date(c(LloydsDates),format="%Y-%m-%d")
 plot(LloydsDates,Lloyds)
@@ -24,8 +24,8 @@ LloydsDates<-LloydsDates[-length(LloydsDates)]
 plot(LloydsDates,LloydsR)
 
 
-RBS<-scan("Data/RBSW_Adj_Oct16.txt")
-RBSDates<-read.table("Data/RBSWDates_Adj_Oct16.txt")
+RBS<-scan("KRSW/RBSW_Adj_Oct16.txt")
+RBSDates<-read.table("KRSW/RBSWDates_Adj_Oct16.txt")
 RBSDates<-as.character(RBSDates[,1])
 RBSDates<-as.Date(c(RBSDates),format="%Y-%m-%d")
 plot(RBSDates,RBS)
@@ -34,8 +34,8 @@ RBSDates<-RBSDates[-length(RBSDates)]
 plot(RBSDates,RBSR)
 
 
-Barclays<-scan("Data/BarclaysW_Adj_Oct16.txt")
-BarclaysDates<-read.table("Data/BarclaysWDates_Adj_Oct16.txt")
+Barclays<-scan("KRSW/BarclaysW_Adj_Oct16.txt")
+BarclaysDates<-read.table("KRSW/BarclaysWDates_Adj_Oct16.txt")
 BarclaysDates<-as.character(BarclaysDates[,1])
 BarclaysDates<-as.Date(c(BarclaysDates),format="%Y-%m-%d")
 plot(BarclaysDates,Barclays)
@@ -116,7 +116,7 @@ dev.off()
 #############################################################
 
 
-source("Functions/ModelDiagnosticsNewNames.r")
+source("KRSW/ModelDiagnosticsNewNames.r")
 
 # 4-dim chi
 chiPlot(data=Banks, ylabel=expression(chi[HLRB]~(q)), chimod=NULL, nsim=1000, nq = 35, qmin = 0.5, qmax = 0.99)
@@ -188,12 +188,12 @@ dim(Banks2)
 
 # Initially examine "most complex" dependence models to home in on best family of models
 ########################################################################################
-source("Functions/CommonFunctions.r")
-source("Functions/Gumbel_T_Functions.r")
-source("Functions/MVGaussian_T_Functions.r")
-source("Functions/RevExp_T_Functions.r")
-source("Functions/RevExp_U_Functions.r")
-source("Functions/Gumbel_U_Functions.r")
+source("KRSW/CommonFunctions.r")
+source("KRSW/Gumbel_T_Functions.r")
+source("KRSW/MVGaussian_T_Functions.r")
+source("KRSW/RevExp_T_Functions.r")
+source("KRSW/RevExp_U_Functions.r")
+source("KRSW/Gumbel_U_Functions.r")
 
 #######################################################################################################
 # NB: all fits below are written twice, the second version with starting values obtained from the first 
