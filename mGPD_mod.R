@@ -87,14 +87,14 @@ dim(xpb2)
 xeb2<-log(xpb2)
 
 # Same but on MGPD scale (i.e. scale of the observations)
-X.obs <- cbind(riv.dat[cond,'V1'] - quantile(riv.dat[cond,'V1'], q),
-               riv.dat[cond,'V2'] - quantile(riv.dat[cond,'V2'], q))
+X.obs <- cbind(riv.dat[cond,'V1'] - quantile(riv.dat[,'V1'], q),
+               riv.dat[cond,'V2'] - quantile(riv.dat[,'V2'], q))
 plot(X.obs)
 dim(X.obs)
 
 # Same but on MGPD scale (i.e. scale of the log observations)
-X.obs.lg <- cbind(log(riv.dat[cond,'V1']) - quantile(log(riv.dat[cond,'V1']), q),
-               log(riv.dat[cond,'V2']) - quantile(log(riv.dat[cond,'V2']), q))
+X.obs.lg <- cbind(log(riv.dat[cond,'V1']) - quantile(log(riv.dat[,'V1']), q),
+               log(riv.dat[cond,'V2']) - quantile(log(riv.dat[,'V2']), q))
 plot(X.obs.lg)
 dim(X.obs.lg)
 
@@ -122,6 +122,19 @@ fit1.3
 fit1.3<-fit.MGPD.RevExpU(x=xeb2, u=rep(0,2), std=T, dep.scale.fix=T, dep.loc.fix=T, dep.start = fit1.3$mle)
 fit1.3
 
-1-pchisq(2*(fit1.1$nll-fit1$nll), df=1)
+#Wald test to simplify parameters in the dependence model
+1 - pchisq(2*(fit1.1$nll - fit1$nll), df=1)
+1 - pchisq(2*(fit1.2$nll - fit1$nll), df=1)
+1 - pchisq(2*(fit1.3$nll - fit1.1$nll), df=1)
+1 - pchisq(2*(fit1.3$nll - fit1.2$nll), df=1)
 
-1-pchisq(2*(fit1.2$nll-fit1$nll), df=1)
+fit1.4.lg<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+                         dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                         dep.start=fit1.3$mle[1],maxit=5000)
+
+fit1.4.lg<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+                         dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                         marg.scale.start=fit1.4$mle[2:3], marg.shape.start=fit1.4$mle[4:5],
+                         dep.start=fit1.4$mle[1],maxit=5000)
+
+
