@@ -128,13 +128,92 @@ fit1.3
 1 - pchisq(2*(fit1.3$nll - fit1.1$nll), df=1)
 1 - pchisq(2*(fit1.3$nll - fit1.2$nll), df=1)
 
-fit1.4.lg<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+#################################################################################################
+# Marginal parameter stability plots to understand if 0.83 quantile might be OK
+#################################################################################################
+
+library(ismev)
+
+plot(log(riv.dat[,'V1']))
+quantile(log(riv.dat[,'V1']),q)
+gpd.fitrange(log(riv.dat[,'V1']),umin=5.5,umax=7.5,nint=20)
+gpd.fit(log(riv.dat[,'V1']),thresh=6.3)
+m1<-gpd.fit(log(riv.dat[,'V1']),thresh=quantile(log(riv.dat[,'V1']),q))
+gpd.diag(m1)
+
+plot(log(riv.dat[,'V2']))
+quantile(log(riv.dat[,'V2']),q)
+gpd.fitrange(log(riv.dat[,'V2']),umin=4,umax=5.5,nint=20)
+gpd.fit(log(riv.dat[,'V2']),thresh=6.4)
+m2<-gpd.fit(log(riv.dat[,'V2']),thresh=quantile(log(riv.dat[,'V2']),q))
+gpd.diag(m2)
+
+
+#################################################################################################
+# Fit margins and dependence simulataneously
+#################################################################################################
+
+fit1.4<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
                          dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
                          dep.start=fit1.3$mle[1],maxit=5000)
 
-fit1.4.lg<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+fit1.4<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
                          dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
                          marg.scale.start=fit1.4$mle[2:3], marg.shape.start=fit1.4$mle[4:5],
                          dep.start=fit1.4$mle[1],maxit=5000)
+
+# Test for common shape
+fit1.5<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+                            dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=rep(1,2), marg.scale.ind=1:2,
+                            dep.start=fit1.4$mle[1],maxit=5000)
+
+fit1.5<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+                            dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=rep(1,2), marg.scale.ind=1:2,
+                            marg.scale.start=fit1.5$mle[2:3], marg.shape.start=fit1.5$mle[4],
+                            dep.start=fit1.5$mle[1],maxit=5000)
+
+1-pchisq(2*(fit1.5$nll-fit1.4$nll),df=1)
+
+
+# Final model: fit1.4 (Single dependence parameter, different marginal scale and shape)
+
+# With Hessian, to get standard errors
+fit1.4.1<-fit.MGPD.RevExpU(x=X.obs.lg, u=rep(0,2), std=F,
+                                   dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                                   marg.scale.start=fit1.4$mle[2:3], marg.shape.start=fit1.4$mle[4:5],
+                                   dep.start=fit1.4$mle[1],maxit=5000,hessian=TRUE)
+
+solve(fit1.4.1$hess)
+sqrt(diag(solve(fit1.4.1$hess)))
+
+# Compare marginal and jointly estimated standard errors
+
+sqrt(diag(solve(fit1.4.1$hess)))[2]/m1$se[1]
+sqrt(diag(solve(fit1.4.1$hess)))[3]/m2$se[1]
+
+###############################################################################################
+# Diagnostics:
+###############################################################################################
+
+# Will print fitted 4-dim chi (caluculated using Monte Carlo)
+# Rounded value is 0.4 (checked also with nsim = 100000)
+
+
+# MGPD.diag.RevExpU(x=log(riv.dat),a = fit1.4$mle[1],beta = rep(0,2),marg.scale = fit1.4$mle[2:3],marg.shape = fit1.4$mle[4:5],nsim = 10000,
+#                   chi=T,chiBS=T,nbs=2000,chiylabel = expression(hat(chi)[HLRB]~(q)))
+pdf("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/ChiRF.pdf")
+MGPD.diag.RevExpU(x=log(riv.dat),a = fit1.4$mle[1],beta = rep(0,2),marg.scale = fit1.4$mle[2:3],marg.shape = fit1.4$mle[2:3],nsim = 10000,
+                  chi=T, cols=c(1,2),chiBS=T,nbs=2000,chiylabel = expression(hat(chi)[V1V2]~(q)))
+abline(v=q,col=4)
+dev.off()
+
+
+###############################################################################################
+# Marginal GPD QQ plots
+###############################################################################################
+GPD.diag.th(X.obs.lg,sig=fit1.4$mle[2:3],gam=fit1.4$mle[4:5])
+
+
+
 
 
