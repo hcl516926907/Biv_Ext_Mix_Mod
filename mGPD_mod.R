@@ -67,6 +67,18 @@ fitGP<-fit.MGPD.RevExpU(x=X$X, u=c(0,0), std=F, marg.scale.ind = c(1,1), marg.sh
 #$mle
 #[1]  1.89320730  3.64727336  0.51113618  2.09892248  0.04513193 -0.14167273
 
+#explore the interpretation of dependence parameters
+a<-c(1,1) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
+beta<-c(0,0)
+sig<-c(2,2)
+gamma<-c(-0.1,0.1)
+set.seed(1234)
+X<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+plot(X$Z, pch=20, xlab=expression(Z[1]),ylab=expression(Z[2]),
+     main = paste(c("alpha1=", "alpha2=", "beta1=", "beta2="),c(1/a, beta),sep='',collapse=', '))
+plot(X$X, pch=20, xlab=expression(X[1]),ylab=expression(X[2]),
+     main = paste(c("alpha1=", "alpha2=", "beta1=", "beta2=", "",
+                    "sig1=", "sig2=", "gam1=", "gam2="),c(1/a, beta,"\n",sig,gamma),sep='',collapse=' '))
 #------------------------------------------------------------------
 
 # Transform margins to uniform scale by empirical probability integral transformation
@@ -129,21 +141,22 @@ fit1.3
 1 - pchisq(2*(fit1.3$nll - fit1.2$nll), df=1)
 
 #################################################################################################
-# Marginal parameter stability plots to understand if 0.83 quantile might be OK
+# Marginal parameter stability plots to understand if q quantile might be OK
 #################################################################################################
 
 library(ismev)
 
 plot(log(riv.dat[,'V1']))
 quantile(log(riv.dat[,'V1']),q)
-gpd.fitrange(log(riv.dat[,'V1']),umin=5.5,umax=7.5,nint=20)
+gpd.fitrange(log(riv.dat[,'V1']),umin=4,umax=7.5,nint=20)
+abline(v=q,col=quantile(log(riv.dat[,'V1']),q))
 gpd.fit(log(riv.dat[,'V1']),thresh=6.3)
 m1<-gpd.fit(log(riv.dat[,'V1']),thresh=quantile(log(riv.dat[,'V1']),q))
 gpd.diag(m1)
 
 plot(log(riv.dat[,'V2']))
 quantile(log(riv.dat[,'V2']),q)
-gpd.fitrange(log(riv.dat[,'V2']),umin=4,umax=5.5,nint=20)
+gpd.fitrange(log(riv.dat[,'V2']),umin=4,umax=7.5,nint=20)
 gpd.fit(log(riv.dat[,'V2']),thresh=6.4)
 m2<-gpd.fit(log(riv.dat[,'V2']),thresh=quantile(log(riv.dat[,'V2']),q))
 gpd.diag(m2)
