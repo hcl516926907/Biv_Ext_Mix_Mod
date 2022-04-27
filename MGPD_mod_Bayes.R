@@ -315,3 +315,23 @@ dic1.1 <- DIC(fit1.1[burnin:n_sp,], exp(y),exp(u),a.ind=1:2,lam.ind,lamfix=TRUE)
 t2 <- Sys.time()
 print(t2 - t1)
 dic1.3 <- DIC(matrix(fit1.3[burnin:n_sp],nrow=length(burnin:n_sp)), exp(y),exp(u),a.ind=1,lam.ind,lamfix=TRUE)
+
+#################################################################################################
+# WAIC
+#################################################################################################
+
+WAIC.sg <- function(yi,post.sp,u,a.ind,lam.ind,lamfix,balthresh){
+  yi <- matrix(yi ,nrow=1,ncol=length(yi),byrow=TRUE)
+  ll <- -apply(post.sp,MARGIN=1,FUN=nll.powunif,y=yi,u=u,a.ind=a.ind,lam.ind=lam.ind,lamfix=lamfix,balthresh=balthresh)
+  lppd <- log(mean(exp(ll)))
+  waic.sg <- -lppd + 2*mean(ll)
+return(waic.sg)
+}
+
+WAIC <- function(post.sp,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE,...){
+  waic <- sum(apply(y,MARGIN=1,FUN=WAIC.sg,post.sp=post.sp,u=u,a.ind=a.ind,lam.ind=lam.ind,lamfix=lamfix,balthresh=balthresh))
+  return(WAIC)
+}
+
+waic1 <- WAIC(fit1[burnin:n_sp,], exp(y),exp(u),a.ind=1:2,lam.ind)
+
