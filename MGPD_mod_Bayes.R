@@ -90,10 +90,16 @@ prior.lam <- function(theta, lam.ind){
 }
 
 ll.tgt <- function(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE){
-  ll <- -nll.powunif(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE)
+  ll <- -nll.powunif(theta,y,u,a.ind,lam.ind,lamfix,balthresh)
   lp1 <- log(prior.a(theta,a.ind))
-  lp2 <- log(prior.lam(theta, lam.ind))
-  return(ll + lp1 + lp2)
+  if (lamfix==FALSE){
+    lp2 <- log(prior.lam(theta, lam.ind))
+    return(ll + lp1 + lp2)
+  }
+  else{
+    return(ll + lp1)
+  }
+
 }
 
 
@@ -108,11 +114,11 @@ set.seed(1234)
 #initial state
 x.old <- c(runif(1,0,5),runif(1,0,5),runif(1,0,2))
 #scale of the proposal distribution
-eta <-  c(0.05,0.05,0.05)
+eta <-  c(0.08,0.08,0.075)
 #number of iteration
-itr <-  10000
+itr <-  15000
 #number of burn-in samples
-burnin <- 2000
+burnin <- 5000
 samples <- x.old
 
 set.seed(1234)
@@ -153,16 +159,139 @@ print(t2 - t1)
 n_sp <- nrow(samples)
 print(colMeans(samples[burnin:n_sp,]))
 
-plot(samples[burnin:n_sp,1],type='l')
-plot(density(samples[burnin:n_sp,1]))
-plot(samples[burnin:n_sp,2],type='l')
-plot(density(samples[burnin:n_sp,2]))
-plot(samples[burnin:n_sp,3],type='l')
-plot(density(samples[burnin:n_sp,3]))
+plot(samples[burnin:n_sp,1],type='l',main=paste(c('par:','eta:'),c('a1', eta[1])))
+plot(density(samples[burnin:n_sp,1]),main=paste(c('par:','eta:'),c('a1', eta[1])))
+plot(samples[burnin:n_sp,2],type='l',main=paste(c('par:','eta:'),c('a2', eta[2])))
+plot(density(samples[burnin:n_sp,2]),main=paste(c('par:','eta:'),c('a2', eta[2])))
+plot(samples[burnin:n_sp,3],type='l',main=paste(c('par:','eta:'),c('lam1', eta[3])))
+plot(density(samples[burnin:n_sp,3]),main=paste(c('par:','eta:'),c('lam1', eta[3])))
+
+fit1 <- samples
 
 
+#################################################################################################
+# Constrained scale parameter, free location parameters
+#################################################################################################
+
+library(tmvtnorm)
+set.seed(1234)
+#initial state
+x.old <- c(runif(1,0,5),runif(1,0,5))
+#scale of the proposal distribution
+eta <-  c(0.08,0.08)
+#number of iteration
+itr <-  15000
+#number of burn-in samples
+burnin <- 5000
+samples <- x.old
+
+set.seed(1234)
+unif <- runif(itr)
+t1 <- Sys.time()
+for (i in 1:itr){
+  # propose a new sample
+  x.new <- c(rtmvnorm(1,mean=x.old,sigma=eta*diag(length(x.old)),lower=c(0,0)))
+  # move from current state to proposed state
+  trans.out <- ll.tgt(x.old,exp(y),exp(u),a.ind,lam.ind,lamfix=TRUE) + 
+    dtmvnorm(x.new,mean=x.old,
+             sigma=eta*diag(length(x.old)),
+             lower=c(0,0),
+             log=TRUE)
+  # move from proposed state to current state
+  trans.in <- ll.tgt(x.new,exp(y),exp(u),a.ind,lam.ind,lamfix=TRUE) + 
+    dtmvnorm(x.old,mean=x.new,
+             sigma=eta*diag(length(x.new)),
+             lower=c(0,0),
+             log=TRUE)
+  log.accept.ratio <- trans.in - trans.out
+  
+  #acceptance rate on a log scale
+  if (log(unif[i]) < min(0,log.accept.ratio)){
+    x.old <- x.new
+    
+  }else{
+    x.old <- x.old
+  }
+  samples = rbind(samples,x.old)
+  if (i%%500==0){
+    cat(c("Done",i,'itertations \n'))
+  }
+}
+t2 <- Sys.time()
+print(t2 - t1)
+
+n_sp <- nrow(samples)
+print(colMeans(samples[burnin:n_sp,]))
+
+plot(samples[burnin:n_sp,1],type='l',main=paste(c('par:','eta:'),c('a1', eta[1])))
+plot(density(samples[burnin:n_sp,1]),main=paste(c('par:','eta:'),c('a1', eta[1])))
+plot(samples[burnin:n_sp,2],type='l',main=paste(c('par:','eta:'),c('a2', eta[2])))
+plot(density(samples[burnin:n_sp,2]),main=paste(c('par:','eta:'),c('a2', eta[2])))
+
+fit1.1 <- samples
 
 
+#################################################################################################
+# Constrained scale parameter, Constrained location parameters
+#################################################################################################
 
+library(tmvtnorm)
+set.seed(1234)
+#initial state
+x.old <- c(runif(1,0,5))
+#scale of the proposal distribution
+eta <-  c(0.08)
+#number of iteration
+itr <-  15000
+#number of burn-in samples
+burnin <- 5000
+samples <- x.old
+
+a.ind <- 1
+
+set.seed(1234)
+unif <- runif(itr)
+t1 <- Sys.time()
+for (i in 1:itr){
+  # propose a new sample
+  x.new <- c(rtmvnorm(1,mean=x.old,sigma=eta*diag(length(x.old)),lower=c(0)))
+  # move from current state to proposed state
+  trans.out <- ll.tgt(x.old,exp(y),exp(u),a.ind,lam.ind,lamfix=TRUE) + 
+    dtmvnorm(x.new,mean=x.old,
+             sigma=eta*diag(length(x.old)),
+             lower=c(0),
+             log=TRUE)
+  # move from proposed state to current state
+  trans.in <- ll.tgt(x.new,exp(y),exp(u),a.ind,lam.ind,lamfix=TRUE) + 
+    dtmvnorm(x.old,mean=x.new,
+             sigma=eta*diag(length(x.new)),
+             lower=c(0),
+             log=TRUE)
+  log.accept.ratio <- trans.in - trans.out
+  
+  #acceptance rate on a log scale
+  if (log(unif[i]) < min(0,log.accept.ratio)){
+    x.old <- x.new
+    
+  }else{
+    x.old <- x.old
+  }
+  samples = rbind(samples,x.old)
+  if (i%%500==0){
+    cat(c("Done",i,'itertations \n'))
+  }
+}
+t2 <- Sys.time()
+print(t2 - t1)
+
+n_sp <- nrow(samples)
+print(colMeans(samples[burnin:n_sp,]))
+
+plot(samples[burnin:n_sp,1],type='l',main=paste(c('par:','eta:'),c('a1', eta[1])))
+plot(density(samples[burnin:n_sp,1]),main=paste(c('par:','eta:'),c('a1', eta[1])))
+plot(samples[burnin:n_sp,2],type='l',main=paste(c('par:','eta:'),c('a2', eta[2])))
+plot(density(samples[burnin:n_sp,2]),main=paste(c('par:','eta:'),c('a2', eta[2])))
+
+fit1.3 <- samples
 
 
