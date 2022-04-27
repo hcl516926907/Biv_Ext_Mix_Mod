@@ -285,13 +285,33 @@ t2 <- Sys.time()
 print(t2 - t1)
 
 n_sp <- nrow(samples)
-print(colMeans(samples[burnin:n_sp,]))
+print(mean(samples[burnin:n_sp]))
 
 plot(samples[burnin:n_sp,1],type='l',main=paste(c('par:','eta:'),c('a1', eta[1])))
 plot(density(samples[burnin:n_sp,1]),main=paste(c('par:','eta:'),c('a1', eta[1])))
-plot(samples[burnin:n_sp,2],type='l',main=paste(c('par:','eta:'),c('a2', eta[2])))
-plot(density(samples[burnin:n_sp,2]),main=paste(c('par:','eta:'),c('a2', eta[2])))
 
 fit1.3 <- samples
 
 
+
+
+
+
+#################################################################################################
+# DIC
+#################################################################################################
+
+DIC <- function(post.sp,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE,...){
+  theta <- colMeans(post.sp)
+  pDIC <- 2*(-nll.powunif(theta,y,u,a.ind,lam.ind,lamfix,balthresh)+
+               mean(apply(post.sp,MARGIN=1,FUN=nll.powunif,y=y,u=u,a.ind=a.ind,lam.ind=lam.ind,lamfix=lamfix,balthresh=balthresh)) )
+  elpdDIC <- -nll.powunif(theta,y,u,a.ind,lam.ind,lamfix,balthresh) - pDIC
+  return(-2*elpdDIC)
+}
+
+dic1 <- DIC(fit1[burnin:n_sp,], exp(y),exp(u),a.ind=1:2,lam.ind)
+t1 <- Sys.time()
+dic1.1 <- DIC(fit1.1[burnin:n_sp,], exp(y),exp(u),a.ind=1:2,lam.ind,lamfix=TRUE)
+t2 <- Sys.time()
+print(t2 - t1)
+dic1.3 <- DIC(matrix(fit1.3[burnin:n_sp],nrow=length(burnin:n_sp)), exp(y),exp(u),a.ind=1,lam.ind,lamfix=TRUE)
