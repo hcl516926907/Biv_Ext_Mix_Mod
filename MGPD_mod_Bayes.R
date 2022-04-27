@@ -317,7 +317,7 @@ print(t2 - t1)
 dic1.3 <- DIC(matrix(fit1.3[burnin:n_sp],nrow=length(burnin:n_sp)), exp(y),exp(u),a.ind=1,lam.ind,lamfix=TRUE)
 
 #################################################################################################
-# WAIC
+# WAIC # fail to run due to censoring integral in the nll.powunif 
 #################################################################################################
 
 WAIC.sg <- function(yi,post.sp,u,a.ind,lam.ind,lamfix,balthresh){
