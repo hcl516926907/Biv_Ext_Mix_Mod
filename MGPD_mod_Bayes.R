@@ -161,10 +161,13 @@ print(colMeans(samples[burnin:n_sp,]))
 
 plot(samples[burnin:n_sp,1],type='l',main=paste(c('par:','eta:'),c('a1', eta[1])))
 plot(density(samples[burnin:n_sp,1]),main=paste(c('par:','eta:'),c('a1', eta[1])))
+abline(v=a[1],col='blue')
 plot(samples[burnin:n_sp,2],type='l',main=paste(c('par:','eta:'),c('a2', eta[2])))
 plot(density(samples[burnin:n_sp,2]),main=paste(c('par:','eta:'),c('a2', eta[2])))
+abline(v=a[2],col='blue')
 plot(samples[burnin:n_sp,3],type='l',main=paste(c('par:','eta:'),c('lam1', eta[3])))
 plot(density(samples[burnin:n_sp,3]),main=paste(c('par:','eta:'),c('lam1', eta[3])))
+abline(v=exp(beta[1]),col='blue')
 
 fit1 <- samples
 
