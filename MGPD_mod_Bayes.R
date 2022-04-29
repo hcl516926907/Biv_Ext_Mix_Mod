@@ -51,8 +51,17 @@ fitGP<-fit.MGPD.RevExpU(x=X$X, u=c(0,0), std=F, marg.scale.ind = c(1,1), marg.sh
 #[1]  1.89320730  3.64727336  0.51113618  2.09892248  0.04513193 -0.14167273
 
 
+# Use simulation to check the unidentifiable of beta
+set.seed(1234)
+X1<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta+100, sig=sig, gamma=gamma, MGPD = T,std=T)
+plot(X1$Z, pch=20, xlab=expression(Z[1]),ylab=expression(Z[2]))
 
 
+plot(quantile(X$Z, probs=seq(0,1,0.01)), quantile(X1$Z, probs=seq(0,1,0.01)), 
+     main="QQ plot of empirical cdf of simulations",
+     xlab="a=c(2,4),beta=c(0.5,0)",
+     ylab="a=c(2,4),beta=c(100.5,100)")
+abline(a=0, b=1)
 
 
 #################################################################################################
