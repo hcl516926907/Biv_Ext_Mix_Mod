@@ -57,13 +57,38 @@ X1<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta+100, sig=sig, gamma=gamma, MGPD 
 plot(X1$Z, pch=20, xlab=expression(Z[1]),ylab=expression(Z[2]))
 
 
-plot(quantile(X$Z, probs=seq(0,1,0.01)), quantile(X1$Z, probs=seq(0,1,0.01)), 
-     main="QQ plot of empirical cdf of simulations",
-     xlab="a=c(2,4),beta=c(0.5,0)",
-     ylab="a=c(2,4),beta=c(100.5,100)")
+biv.pp <- function(X, u){
+  n <- dim(X)[1]
+  # table == vector is operating down columns
+  is.below <- t(t(X)<=u)
+  cnt.below <- sum(rowSums(is.below)==2)
+  return(cnt.below/n)
+}
+
+nx <- 50
+ny <- 50
+grid.mat <- matrix(0,nx,ny)
+xrange <- seq(from=min(X$Z[,1], X1$Z[,1]), to=max(X$Z[,1], X1$Z[,1]), length.out=nx)
+yrange <- seq(from=min(X$Z[,2], X1$Z[,2]), to=max(X$Z[,2], X1$Z[,2]), length.out=ny)
+px <- c()
+py <- c()
+for (i in 1:nx){
+  for (j in 1:ny){
+    f <- biv.pp(X$Z, c(xrange[i], yrange[j]))
+    f1 <- biv.pp(X1$Z, c(xrange[i], yrange[j]))
+    px <- c(px, f)
+    py <- c(py, f1)
+    grid.mat[nx-i+1,j] <- f - f1
+  }
+  
+}
+
+# for better plot, simulate more points, e.g. 10k
+plot(px, py)
 abline(a=0, b=1)
 
-
+library(corrplot)
+corrplot(grid.mat, method="color",is.corr=FALSE, tl.cex=0.01)
 #################################################################################################
 # MCMC
 #################################################################################################
@@ -346,4 +371,7 @@ WAIC <- function(post.sp,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE,...){
 }
 
 waic1 <- WAIC(fit1[burnin:n_sp,], exp(y),exp(u),a.ind=1:2,lam.ind)
+
+####################################################
+
 
