@@ -54,8 +54,9 @@ fitGP<-fit.MGPD.RevExpU(x=X$X, u=c(0,0), std=F, marg.scale.ind = c(1,1), marg.sh
 # Use simulation to check the unidentifiable of beta
 set.seed(1234)
 X1<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta+100, sig=sig, gamma=gamma, MGPD = T,std=T)
-plot(X1$Z, pch=20, xlab=expression(Z[1]),ylab=expression(Z[2]))
+plot(X1$Z, pch=20, xlab=expression(Z[1]),ylab=expression(Z[2]), main='a=c(2,4), beta=c(100.5,100)')
 
+plot(X$Z, pch=20, xlab=expression(Z[1]),ylab=expression(Z[2]), main='a=c(2,4), beta=c(0.5,0)')
 
 biv.pp <- function(X, u){
   n <- dim(X)[1]
@@ -84,7 +85,9 @@ for (i in 1:nx){
 }
 
 # for better plot, simulate more points, e.g. 10k
-plot(px, py)
+plot(px, py, main="PP plot of empirical cdf of simulations",
+     xlab="a=c(2,4),beta=c(0.5,0)",
+     ylab="a=c(2,4),beta=c(100.5,100)")
 abline(a=0, b=1)
 
 library(corrplot)
