@@ -8,9 +8,9 @@ source("KRSW/MVGaussian_T_Functions.r")
 source("KRSW/CommonFunctions.r")
 source("KRSW/Gumbel_U_Functions.r")
 source("KRSW/Gumbel_T_Functions.r")
+dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/mGPD_mod_Bayes'
 
 set.seed(15)
-
 d<-2
 a<-c(2,4) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
 beta<-c(0.5,0)
@@ -85,7 +85,7 @@ for (i in 1:nx){
 }
 
 # for better plot, simulate more points, e.g. 10k
-plot(px, py, main="PP plot of empirical cdf of simulations",
+plot(px, py, main="PP plot of the empirical cdf of the simulations",
      xlab="a=c(2,4),beta=c(0.5,0)",
      ylab="a=c(2,4),beta=c(100.5,100)")
 abline(a=0, b=1)
@@ -97,7 +97,7 @@ corrplot(grid.mat, method="color",is.corr=FALSE, tl.cex=0.01)
 #################################################################################################
 
 y <- X$Z
-d <- dim(x)[2]
+d <- dim(y)[2]
 a.ind <- 1:d
 lam.ind <- (d+1):(2*d-1)
 u <- rep(0,d)
@@ -333,8 +333,7 @@ plot(density(samples[burnin:n_sp,1]),main=paste(c('par:','eta:'),c('a1', eta[1])
 fit1.3 <- samples
 
 
-
-
+save(fit1,fit1.1,fit1.3, file=file.path(dir.out,'my_mcmc_samples.RData'))
 
 
 #################################################################################################
@@ -375,6 +374,274 @@ WAIC <- function(post.sp,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE,...){
 
 waic1 <- WAIC(fit1[burnin:n_sp,], exp(y),exp(u),a.ind=1:2,lam.ind)
 
-####################################################
+#################################################################################################
+# Parallelly run MCMC by package
+#################################################################################################
+
+set.seed(15)
+d<-2
+a<-c(2,4) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
+beta<-c(0.5,0)
+sig<-c(2,2)
+gamma<-c(0.1,-0.1)
+
+X<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+y <- X$Z
+d <- dim(y)[2]
+u <- rep(0,d)
+
+p.log <- function(x){
+  return(ll.tgt(x,exp(y),exp(u),a.ind=1:2,lam.ind=3,lamfix=FALSE))
+}
+
+library(adaptMCMC)
+library(posterior)
+t1 <- Sys.time()
+itr <-  25000
+#number of burn-in samples
+burnin <- 5000
+#c(0.09,0.095,0.095)
+res <- MCMC.parallel(p.log, n=itr,
+              init=c(runif(1,0,5),runif(1,0,5),runif(1,0,2)),n.chain=3,n.cpu=6,
+              scale=c(0.08,0.09,0.09),adapt=FALSE)
+t2 <- Sys.time()
+print(t2-t1)
+
+save(res,itr,burnin, file=file.path(dir.out,'pack_mcmc_samples_inform_prior.RData'))
+
+plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of a1')
+lines(burnin:itr,res[[2]]$samples[burnin:itr,1], type='l', col='red')
+lines(burnin:itr,res[[3]]$samples[burnin:itr,1], type='l', col='blue')
+
+plot(burnin:itr,res[[1]]$samples[burnin:itr,2], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of a2')
+lines(burnin:itr,res[[2]]$samples[burnin:itr,2], type='l', col='red')
+lines(burnin:itr,res[[3]]$samples[burnin:itr,2], type='l', col='blue')
+
+plot(burnin:itr,res[[1]]$samples[burnin:itr,3], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of lam')
+lines(burnin:itr,res[[2]]$samples[burnin:itr,3], type='l', col='red')
+lines(burnin:itr,res[[3]]$samples[burnin:itr,3], type='l', col='blue')
 
 
+sims.a1 <- cbind(res[[1]]$samples[burnin:itr,1],res[[2]]$samples[burnin:itr,1],
+                 res[[3]]$samples[burnin:itr,1])
+sims.a2 <- cbind(res[[1]]$samples[burnin:itr,2],res[[2]]$samples[burnin:itr,2],
+                 res[[3]]$samples[burnin:itr,2])
+sims.lam <- cbind(res[[1]]$samples[burnin:itr,3],res[[2]]$samples[burnin:itr,3],
+                  res[[3]]$samples[burnin:itr,3])
+
+thin <- 10
+seq.thin <- seq(1, dim(sims.a1)[1], by=thin)
+
+rhat(sims.a1)
+rhat(sims.a1[seq.thin,])
+ess_basic(sims.a1)
+ess_basic(sims.a1[seq.thin,])
+
+rhat(sims.a2)
+rhat(sims.a2[seq.thin,])
+ess_basic(sims.a2)
+ess_basic(sims.a2[seq.thin,])
+
+rhat(sims.lam)
+rhat(sims.lam[seq.thin,])
+ess_basic(sims.lam)
+ess_basic(sims.lam[seq.thin,])
+
+sims.vec.a1 <- c(sims.a1[seq.thin,])
+sims.vec.a2 <- c(sims.a2[seq.thin,])
+sims.vec.lam <- c(sims.lam[seq.thin,])
+
+plot(density(sims.vec.a1),main=paste(c('par:'),c('a1')))
+abline(v=2,col='blue')
+plot(density(sims.vec.a2),main=paste(c('par:'),c('a2')))
+abline(v=4,col='blue')
+plot(density(sims.vec.lam),main=paste(c('par:'),c('lam')))
+abline(v=exp(0.5),col='blue')
+#################################################################################################
+# Posterior predictive check
+#################################################################################################
+
+library(evd)
+chiplot(cbind(X$Z[,1],X$Z[,2]))
+chi.org <- chiplot(X$Z,qlim=c(0.6,0.99),ask=FALSE)
+
+ncomb<- length(sims.vec.a1)
+set.seed(1234)
+sp.seq <- sample(1:ncomb, size=ncomb, replace=TRUE)
+chi.sim <- c()
+chibar.sim <- c()
+
+for (i in sp.seq){
+  a <- c(sims.vec.a1[i],sims.vec.a2[i])
+  beta <- c(log(sims.vec.lam[i]),0)
+  set.seed(1234)
+  X1<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+  dev.new()
+  chi <- chiplot(X1$Z,qlim=c(0.6,0.99),ask=FALSE)
+  dev.off()
+  chi.sim <- rbind(chi.sim, chi$chi[,2])
+  chibar.sim <- rbind(chibar.sim, chi$chibar[,2])
+}
+
+quants <- c(0.025,0.975)
+chi.CI <- apply( chi.sim , 2 , quantile , probs = quants , na.rm = TRUE )
+chibar.CI <- apply( chibar.sim , 2 , quantile , probs = quants , na.rm = TRUE )
+
+plot(chi.org$quantile, chi.org$chi[,2], type='l', xlim=c(0.6,1), ylim=c(-1,1))
+lines(chi.org$quantile, chi.CI[1,], type='l', lty=2, col='red')
+lines(chi.org$quantile, chi.CI[2,], type='l', lty=2, col='red')
+
+#################################################################################################
+# try vague prior
+#################################################################################################
+
+set.seed(15)
+d<-2
+a<-c(2,4) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
+beta<-c(0.5,0)
+sig<-c(2,2)
+gamma<-c(0.1,-0.1)
+
+X<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+y <- X$Z
+d <- dim(y)[2]
+u <- rep(0,d)
+
+
+prior.a <- function(theta,a.ind){
+  d <- length(a.ind)
+  prior <- 1
+  for (i in 1:d){
+    # marginally independent, follows a gamma distribution
+    #prior <- prior*dgamma(theta[a.ind][i], shape=4, rate=1)
+    
+    prior <- prior*dunif(theta[a.ind][i],0,100)
+  }
+  return(prior)
+}
+
+prior.lam <- function(theta, lam.ind){
+  d <- length(lam.ind)
+  prior <- 1
+  for (i in 1:d){
+    #prior <- prior*dgamma(theta[lam.ind][i], shape=1, rate=1)
+    prior <- prior*dunif(theta[lam.ind][i],0,100)
+  }
+  return(prior)
+}
+
+ll.tgt <- function(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE){
+  ll <- -nll.powunif(theta,y,u,a.ind,lam.ind,lamfix,balthresh)
+  lp1 <- log(prior.a(theta,a.ind))
+  if (lamfix==FALSE){
+    lp2 <- log(prior.lam(theta, lam.ind))
+    return(ll + lp1 + lp2)
+  }
+  else{
+    return(ll + lp1)
+  }
+  
+}
+
+
+p.log <- function(x){
+  return(ll.tgt(x,exp(y),exp(u),a.ind=1:2,lam.ind=3,lamfix=FALSE))
+}
+
+library(adaptMCMC)
+library(posterior)
+t1 <- Sys.time()
+itr <-  25000
+#number of burn-in samples
+burnin <- 5000
+#c(0.09,0.095,0.095)
+res <- MCMC.parallel(p.log, n=itr,
+                     init=c(runif(1,0,5),runif(1,0,5),runif(1,0,2)),n.chain=3,n.cpu=6,
+                     scale=c(0.08,0.09,0.09),adapt=FALSE)
+t2 <- Sys.time()
+print(t2-t1)
+
+plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of a1')
+lines(burnin:itr,res[[2]]$samples[burnin:itr,1], type='l', col='red')
+lines(burnin:itr,res[[3]]$samples[burnin:itr,1], type='l', col='blue')
+
+plot(burnin:itr,res[[1]]$samples[burnin:itr,2], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of a2')
+lines(burnin:itr,res[[2]]$samples[burnin:itr,2], type='l', col='red')
+lines(burnin:itr,res[[3]]$samples[burnin:itr,2], type='l', col='blue')
+
+plot(burnin:itr,res[[1]]$samples[burnin:itr,3], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of lam')
+lines(burnin:itr,res[[2]]$samples[burnin:itr,3], type='l', col='red')
+lines(burnin:itr,res[[3]]$samples[burnin:itr,3], type='l', col='blue')
+
+
+sims.a1 <- cbind(res[[1]]$samples[burnin:itr,1],res[[2]]$samples[burnin:itr,1],
+                 res[[3]]$samples[burnin:itr,1])
+sims.a2 <- cbind(res[[1]]$samples[burnin:itr,2],res[[2]]$samples[burnin:itr,2],
+                 res[[3]]$samples[burnin:itr,2])
+sims.lam <- cbind(res[[1]]$samples[burnin:itr,3],res[[2]]$samples[burnin:itr,3],
+                  res[[3]]$samples[burnin:itr,3])
+
+thin <- 10
+seq.thin <- seq(1, dim(sims.a1)[1], by=thin)
+
+rhat(sims.a1)
+rhat(sims.a1[seq.thin,])
+ess_basic(sims.a1)
+ess_basic(sims.a1[seq.thin,])
+
+rhat(sims.a2)
+rhat(sims.a2[seq.thin,])
+ess_basic(sims.a2)
+ess_basic(sims.a2[seq.thin,])
+
+rhat(sims.lam)
+rhat(sims.lam[seq.thin,])
+ess_basic(sims.lam)
+ess_basic(sims.lam[seq.thin,])
+
+sims.vec.a1 <- c(sims.a1[seq.thin,])
+sims.vec.a2 <- c(sims.a2[seq.thin,])
+sims.vec.lam <- c(sims.lam[seq.thin,])
+
+plot(density(sims.vec.a1),main=paste(c('par:'),c('a1')))
+abline(v=2,col='blue')
+plot(density(sims.vec.a2),main=paste(c('par:'),c('a2')))
+abline(v=4,col='blue')
+plot(density(sims.vec.lam),main=paste(c('par:'),c('lam')))
+abline(v=exp(0.5),col='blue')
+
+
+library(evd)
+chi.org <- chiplot(X$Z,qlim=c(0.6,0.99),ask=FALSE)
+
+ncomb<- length(sims.vec.a1)
+set.seed(1234)
+sp.seq <- sample(1:ncomb, size=ncomb, replace=TRUE)
+chi.sim <- c()
+chibar.sim <- c()
+
+for (i in sp.seq){
+  a <- c(sims.vec.a1[i],sims.vec.a2[i])
+  beta <- c(log(sims.vec.lam[i]),0)
+  set.seed(1234)
+  X1<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+  dev.new()
+  chi <- chiplot(X1$Z,qlim=c(0.6,0.99),ask=FALSE)
+  dev.off()
+  chi.sim <- rbind(chi.sim, chi$chi[,2])
+  chibar.sim <- rbind(chibar.sim, chi$chibar[,2])
+}
+
+quants <- c(0.025,0.975)
+chi.CI <- apply( chi.sim , 2 , quantile , probs = quants , na.rm = TRUE )
+chibar.CI <- apply( chibar.sim , 2 , quantile , probs = quants , na.rm = TRUE )
+
+plot(chi.org$quantile, chi.org$chi[,2], type='l', xlim=c(0.6,1), ylim=c(-1,1))
+lines(chi.org$quantile, chi.CI[1,], type='l', lty=2, col='red')
+lines(chi.org$quantile, chi.CI[2,], type='l', lty=2, col='red')
