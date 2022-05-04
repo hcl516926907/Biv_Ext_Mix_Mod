@@ -618,21 +618,22 @@ abline(v=exp(0.5),col='blue')
 
 
 library(evd)
-chi.org <- chiplot(X$Z,qlim=c(0.6,0.99),ask=FALSE)
+chi.org <- chiplot(X$Z,qlim=c(0.6,0.985),ask=FALSE)
 
 ncomb<- length(sims.vec.a1)
 set.seed(1234)
-sp.seq <- sample(1:ncomb, size=ncomb, replace=TRUE)
+sp.seq <- sample(1:ncomb, size=10*ncomb, replace=TRUE)
 chi.sim <- c()
 chibar.sim <- c()
 
 for (i in sp.seq){
   a <- c(sims.vec.a1[i],sims.vec.a2[i])
   beta <- c(log(sims.vec.lam[i]),0)
-  set.seed(1234)
+  #set.seed(1234) #half of the posterior samples are the same. 
+  #need to consider the randomness introduced by generating data.
   X1<-sim.RevExpU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
   dev.new()
-  chi <- chiplot(X1$Z,qlim=c(0.6,0.99),ask=FALSE)
+  chi <- chiplot(X1$Z,qlim=c(0.6,0.985),ask=FALSE)
   dev.off()
   chi.sim <- rbind(chi.sim, chi$chi[,2])
   chibar.sim <- rbind(chibar.sim, chi$chibar[,2])
