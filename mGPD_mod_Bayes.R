@@ -564,6 +564,8 @@ res <- MCMC.parallel(p.log, n=itr,
 t2 <- Sys.time()
 print(t2-t1)
 
+save(res,itr,burnin, file=file.path(dir.out,'pack_mcmc_samples_vague_prior.RData'))
+
 plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
      main='Traceplot of a1')
 lines(burnin:itr,res[[2]]$samples[burnin:itr,1], type='l', col='red')
@@ -618,7 +620,7 @@ abline(v=exp(0.5),col='blue')
 
 
 library(evd)
-chi.org <- chiplot(X$Z,qlim=c(0.6,0.985),ask=FALSE)
+chi.org <- chiplot(X$Z,qlim=c(0.6,0.99),ask=FALSE)
 
 ncomb<- length(sims.vec.a1)
 set.seed(1234)
@@ -646,3 +648,252 @@ chibar.CI <- apply( chibar.sim , 2 , quantile , probs = quants , na.rm = TRUE )
 plot(chi.org$quantile, chi.org$chi[,2], type='l', xlim=c(0.6,1), ylim=c(-1,1))
 lines(chi.org$quantile, chi.CI[1,], type='l', lty=2, col='red')
 lines(chi.org$quantile, chi.CI[2,], type='l', lty=2, col='red')
+
+#################################################################################################
+# Test the identification issue via Bayesian approach
+#################################################################################################
+
+
+nll.powunif.1<-function(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE)
+{
+  d<-dim(y)[2]
+  a<-theta[a.ind]
+  
+  if(length(a)==1){a<-rep(a,d)}
+  # include all parameters of lam
+  if(lamfix){lam<-rep(tail(theta,1),d)}
+  else{
+    lam<-theta[lam.ind]
+  }
+  
+  if(balthresh){
+    lam<-1/(1+a)
+  }
+  
+  if(any(lam<0.01)||a<=0.01){return(10e10)}
+  
+  ind<-apply(y,1,comp.gt,u=u)
+  y.uc<-y[ind,]
+  y.pc<-y[!ind,]
+  
+  L<-apply(y.uc,1,fY.powunif,a=a,lam=lam)
+  nll.uc<--sum(log(L))
+  
+  if(sum(!ind)>0)
+  {
+    L2<-apply(y.pc,1,fY.powunif.cens,a=a,lam=lam,u=u)
+    nll.pc<--sum(log(L2))
+  }
+  else{nll.pc<-0}
+  nll<-nll.uc+nll.pc
+  return(nll)
+}
+
+
+prior.a.1 <- function(theta,a.ind){
+  d <- length(a.ind)
+  prior <- 1
+  for (i in 1:d){
+    # marginally independent, follows a gamma distribution
+    #prior <- prior*dgamma(theta[a.ind][i], shape=4, rate=1)
+    prior <- prior*dunif(theta[a.ind][i],0,100)
+  }
+  return(prior)
+}
+
+# both priors of lam are vague
+prior.lam.1 <- function(theta, lam.ind){
+  d <- length(lam.ind)
+  prior <- 1
+  for (i in 1:d){
+    #prior <- prior*dgamma(theta[lam.ind][i], shape=1, rate=1)
+    prior <- prior*dunif(theta[lam.ind][i],0,100)
+  }
+  return(prior)
+}
+
+# informative prior
+prior.lam.2 <- function(theta, lam.ind){
+  prior <- dunif(theta[lam.ind][1],0,100)*dunif(theta[lam.ind][2], 0.5,1.5)
+  return(prior)
+}
+
+# shifted informative prior 
+prior.lam.2.1 <- function(theta, lam.ind){
+  prior <- dunif(theta[lam.ind][1],0,100)*dunif(theta[lam.ind][2],10.5,11.5)
+  return(prior)
+}
+
+ll.tgt.1 <- function(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE){
+  ll <- -nll.powunif.1(theta,y,u,a.ind,lam.ind,lamfix,balthresh)
+  lp1 <- log(prior.a.1(theta,a.ind))
+  lp2 <- log(prior.lam.1(theta, lam.ind))
+  return(ll + lp1 + lp2)
+}
+
+ll.tgt.2 <- function(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE){
+  ll <- -nll.powunif.1(theta,y,u,a.ind,lam.ind,lamfix,balthresh)
+  lp1 <- log(prior.a.1(theta,a.ind))
+  lp2 <- log(prior.lam.2(theta, lam.ind))
+  return(ll + lp1 + lp2)
+}
+
+ll.tgt.2.1 <- function(theta,y,u,a.ind,lam.ind,lamfix=FALSE, balthresh=FALSE){
+  ll <- -nll.powunif.1(theta,y,u,a.ind,lam.ind,lamfix,balthresh)
+  lp1 <- log(prior.a.1(theta,a.ind))
+  lp2 <- log(prior.lam.2.1(theta, lam.ind))
+  return(ll + lp1 + lp2)
+}
+
+
+p.log.1 <- function(x){
+  return(ll.tgt.1(x,exp(y),exp(u),a.ind=1:2,lam.ind=3:4,lamfix=FALSE))
+}
+
+p.log.2 <- function(x){
+  return(ll.tgt.2(x,exp(y),exp(u),a.ind=1:2,lam.ind=3:4,lamfix=FALSE))
+}
+
+p.log.2.1 <- function(x){
+  return(ll.tgt.2.1(x,exp(y),exp(u),a.ind=1:2,lam.ind=3:4,lamfix=FALSE))
+}
+
+t1 <- Sys.time()
+itr <-  6000
+#number of burn-in samples
+burnin <- 1000
+#c(0.09,0.095,0.095)
+res1 <- MCMC.parallel(p.log.1, n=itr,
+                     init=c(runif(1,0,5),runif(1,0,5),runif(1,0,5),runif(1,0,5)),n.chain=3,n.cpu=6,
+                     scale=c(0.08,0.09,0.09,0.09),adapt=FALSE)
+t2 <- Sys.time()
+print(t2-t1)
+
+postDiag <- function(res,burnin,itr,thin=10, plot.dens=TRUE,plot.trace=TRUE,traceplot.mix=FALSE){
+  lam2.ind <- dim(res[[1]]$samples)[2]==4
+  sims.a1 <- cbind(res[[1]]$samples[burnin:itr,1],res[[2]]$samples[burnin:itr,1],
+                   res[[3]]$samples[burnin:itr,1])
+  sims.a2 <- cbind(res[[1]]$samples[burnin:itr,2],res[[2]]$samples[burnin:itr,2],
+                   res[[3]]$samples[burnin:itr,2])
+  sims.lam1 <- cbind(res[[1]]$samples[burnin:itr,3],res[[2]]$samples[burnin:itr,3],
+                    res[[3]]$samples[burnin:itr,3])
+  if (lam2.ind){
+    sims.lam2 <- cbind(res[[1]]$samples[burnin:itr,4],res[[2]]$samples[burnin:itr,4],
+                       res[[3]]$samples[burnin:itr,4])
+  }
+  seq.thin <- seq(1, dim(sims.a1)[1], by=thin)
+  
+  sims.vec.a1 <- c(sims.a1[seq.thin,])
+  sims.vec.a2 <- c(sims.a2[seq.thin,])
+  sims.vec.lam1 <- c(sims.lam1[seq.thin,])
+  
+  if (lam2.ind){
+    rhat(sims.lam2)
+    rhat(sims.lam2[seq.thin,])
+    ess_basic(sims.lam2)
+    ess_basic(sims.lam2[seq.thin,])
+    sims.vec.lam2 <- c(sims.lam2[seq.thin,])
+    df.summary <- data.frame('a1'=c(rhat(sims.a1),rhat(sims.a1[seq.thin,]),ess_basic(sims.a1),ess_basic(sims.a1[seq.thin,])),
+                     'a2'=c(rhat(sims.a2),rhat(sims.a2[seq.thin,]),ess_basic(sims.a2),ess_basic(sims.a2[seq.thin,])),
+                     'lam1'=c(rhat(sims.lam1),rhat(sims.lam1[seq.thin,]),ess_basic(sims.lam1),ess_basic(sims.lam1[seq.thin,])),
+                     'lam2'=c(rhat(sims.lam2),rhat(sims.lam2[seq.thin,]),ess_basic(sims.lam2),ess_basic(sims.lam1[seq.thin,])),
+                     row.names=c('Rhat','Rhat.thin','neff','neff.thin'))
+  }
+  else{
+    df.summary <- data.frame('a1'=c(rhat(sims.a1),rhat(sims.a1[seq.thin,]),ess_basic(sims.a1),ess_basic(sims.a1[seq.thin,])),
+                             'a2'=c(rhat(sims.a2),rhat(sims.a2[seq.thin,]),ess_basic(sims.a2),ess_basic(sims.a2[seq.thin,])),
+                             'lam1'=c(rhat(sims.lam1),rhat(sims.lam1[seq.thin,]),ess_basic(sims.lam1),ess_basic(sims.lam1[seq.thin,])),
+                             row.names=c('Rhat','Rhat.thin','neff','neff.thin'))
+  }
+  print(df.summary)
+  if (plot.trace){
+    if (traceplot.mix){
+      plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
+           main='Traceplot of a1')
+      lines(burnin:itr,res[[2]]$samples[burnin:itr,1], type='l', col='red')
+      lines(burnin:itr,res[[3]]$samples[burnin:itr,1], type='l', col='blue')
+      
+      plot(burnin:itr,res[[1]]$samples[burnin:itr,2], type='l', xlab='iterations', ylab='sample',
+           main='Traceplot of a2')
+      lines(burnin:itr,res[[2]]$samples[burnin:itr,2], type='l', col='red')
+      lines(burnin:itr,res[[3]]$samples[burnin:itr,2], type='l', col='blue')
+      
+      plot(burnin:itr,res[[1]]$samples[burnin:itr,3], type='l', xlab='iterations', ylab='sample',
+           main='Traceplot of lam1')
+      lines(burnin:itr,res[[2]]$samples[burnin:itr,3], type='l', col='red')
+      lines(burnin:itr,res[[3]]$samples[burnin:itr,3], type='l', col='blue')
+      if (lam2.ind){
+        plot(burnin:itr,res[[1]]$samples[burnin:itr,4], type='l', xlab='iterations', ylab='sample',
+             main='Traceplot of lam2')
+        lines(burnin:itr,res[[2]]$samples[burnin:itr,4], type='l', col='red')
+        lines(burnin:itr,res[[3]]$samples[burnin:itr,4], type='l', col='blue')
+      }
+    }
+    else{
+      plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
+           main='Traceplot of a1')
+      plot(burnin:itr,res[[1]]$samples[burnin:itr,2], type='l', xlab='iterations', ylab='sample',
+           main='Traceplot of a2')
+      plot(burnin:itr,res[[1]]$samples[burnin:itr,3], type='l', xlab='iterations', ylab='sample',
+           main='Traceplot of lam1')
+      if (lam2.ind){
+        plot(burnin:itr,res[[1]]$samples[burnin:itr,4], type='l', xlab='iterations', ylab='sample',
+             main='Traceplot of lam2')
+      }
+    }
+  }
+  
+  if (plot.dens){
+    plot(density(sims.vec.a1),main=paste(c('par:'),c('a1')))
+    abline(v=2,col='blue')
+    plot(density(sims.vec.a2),main=paste(c('par:'),c('a2')))
+    abline(v=4,col='blue')
+    plot(density(sims.vec.lam1),main=paste(c('par:'),c('lam1')))
+    abline(v=exp(0.5),col='blue')
+    if (lam2.ind){
+      plot(density(sims.vec.lam2),main=paste(c('par:'),c('lam2')))
+      abline(v=exp(0),col='blue')
+    }
+  }
+}
+postDiag(res1,1000,6000,traceplot.mix=T)
+
+res1.test <- res1.1
+
+lam1 <- res1.test[[1]]$samples[5000:50000,3:4]
+lam1bar <- apply(lam1,1,mean)
+lam1 <- sweep(lam1,1,lam1bar)
+
+lam2 <- res1.test[[2]]$samples[5000:50000,3:4]
+lam2bar <- apply(lam2,1,mean)
+lam2 <- sweep(lam2,1,lam2bar)
+
+lam3 <- res1.test[[3]]$samples[5000:50000,3:4]
+lam3bar <- apply(lam3,1,mean)
+lam3 <- sweep(lam3,1,lam3bar)
+
+plot(5000:50000,lam1[,1], type='l', xlab='iterations', ylab='sample',
+     main='Traceplot of a1')
+lines(5000:50000,lam2[,1], type='l', col='red')
+lines(5000:50000,lam3[,1], type='l', col='blue')
+
+rhat(cbind(lam1[,1],lam2[,1],lam3[,1]))
+rhat(cbind(lam1[,2],lam2[,2],lam3[,2]))
+
+#########################################################
+
+res1.1 <- MCMC.parallel(p.log.1, n=50000,
+                      init=c(runif(1,0,5),runif(1,0,5),runif(1,0,5),runif(1,0,5)),n.chain=3,n.cpu=6,
+                      scale=c(0.08,0.09,40,40),adapt=FALSE)
+postDiag(res1.1,5000,50000,plot.dens=T,traceplot.mix=T)
+
+
+res2 <- MCMC.parallel(p.log.2, n=itr,
+                      init=c(runif(1,0,5),runif(1,0,5),runif(1,0,5),runif(1,0,5)),n.chain=3,n.cpu=6,
+                      scale=c(0.05,0.05,0.05,0.05),adapt=FALSE)
+postDiag(res2,1000,6000)
+
+res2.1 <- MCMC.parallel(p.log.2.1, n=itr,
+                      init=c(runif(1,0,5),runif(1,0,5),runif(1,0,5),runif(1,0,20)),n.chain=3,n.cpu=6,
+                      scale=c(0.08,0.09,0.09,0.09),adapt=FALSE)
+postDiag(res2.1,1000,6000)
