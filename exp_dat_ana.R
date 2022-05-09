@@ -135,4 +135,75 @@ lines(u.seq, chib.low, type = "l", lty = 2, pch = 18)
 library(evd)
 chiplot(cbind(riv1,riv2))
 chiplot(cbind(riv1,riv2),qlim=c(0.01,0.99))
-#show github
+
+
+
+
+################################################################
+# chi and chi bar plot for Gaussian copula
+
+# Vectorize it if have time.
+################################################################
+library(mvtnorm)
+rho <- 0.9
+sigma <- matrix(c(1,rho,rho,1),ncol=2)
+
+
+copula.bigau <- function(u,v,rho){
+  x <- qnorm(u)
+  y <- qnorm(v)
+  covmat <- matrix(c(1,rho,rho,1),ncol=2)
+  return (pmvnorm(upper=c(x,y),sigma=covmat)[1])
+}
+
+copula.bar.bigau <- function(u,v,rho){
+  copula <- copula.bigau(u,v,rho)
+  return (1-u-v+copula)
+}
+
+chiu <- function(u,rho){
+  cpl <- copula.bigau(u,u,rho)
+  return(2-log(cpl)/log(u))
+}
+
+chibu <- function(u,rho){
+  cpl.bar <- copula.bar.bigau(u,u,rho)
+  return(2*log(1-u)/log(cpl.bar)-1)
+}
+
+u.seq <- seq(0.0001,0.9999,length.out=1000)
+#---------------------chi plot-----------------------------------
+
+chi <- sapply(u.seq,chiu,rho=-0.9)
+
+u.seq.plot <- c(u.seq,1)
+chi.plot <- c(chi,0)
+
+plot(u.seq.plot, chi.plot, type='l', ylim=c(-1,1), xlab='u', ylab= expression(chi(u)))
+
+for (rho in seq(-0.8,0.9,by=0.1)){
+  chi <-  sapply(u.seq,chiu,rho)
+  chi.plot <- c(chi,0)
+  lines(u.seq.plot, chi.plot, type='l')
+}
+
+botm <- sapply(u.seq,function(x) {2-log(2*x-1)/log(x)})
+lines(u.seq.plot, rep(1,length(u.seq.plot)), type='l', col='red', lty=2)
+lines(u.seq.plot,c(botm,0), type='l', col='red', lty=2)
+
+#---------------------chi bar plot-----------------------------------
+
+u.seq <- seq(0.01,0.99,length.out=100)
+chib <- sapply(u.seq,chibu,rho=-0.9)
+#chib.plot <- c(chib,0)
+plot(u.seq, chib, type='l', ylim=c(-1,1), xlab='u', ylab= expression(bar(chi)(u)))
+
+
+for (rho in seq(-0.8,0.9,by=0.1)){
+  chib <-  sapply(u.seq,chibu,rho)
+  #chib.plot <- c(chib,0)
+  lines(u.seq, chib, type='l')
+}
+
+lines(u.seq, rep(1,length(u.seq)), type='l', col='red', lty=2)
+lines(u.seq, rep(-1,length(u.seq)), type='l', col='red', lty=2)
