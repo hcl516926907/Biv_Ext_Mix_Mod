@@ -554,7 +554,7 @@ p.log <- function(x){
 library(adaptMCMC)
 library(posterior)
 t1 <- Sys.time()
-itr <-  25000
+itr <-  35000
 #number of burn-in samples
 burnin <- 5000
 #c(0.09,0.095,0.095)
@@ -564,7 +564,9 @@ res <- MCMC.parallel(p.log, n=itr,
 t2 <- Sys.time()
 print(t2-t1)
 
+
 save(res,itr,burnin, file=file.path(dir.out,'pack_mcmc_samples_vague_prior.RData'))
+postDiag(res,burnin,itr, traceplot.mix = T)
 
 plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
      main='Traceplot of a1')
@@ -645,9 +647,12 @@ quants <- c(0.025,0.975)
 chi.CI <- apply( chi.sim , 2 , quantile , probs = quants , na.rm = TRUE )
 chibar.CI <- apply( chibar.sim , 2 , quantile , probs = quants , na.rm = TRUE )
 
-plot(chi.org$quantile, chi.org$chi[,2], type='l', xlim=c(0.6,1), ylim=c(-1,1))
+plot(chi.org$quantile, chi.org$chi[,2], type='l', xlim=c(0.6,1), ylim=c(-1,1),
+     xlab='Quantile', ylab='Chi')
 lines(chi.org$quantile, chi.CI[1,], type='l', lty=2, col='red')
 lines(chi.org$quantile, chi.CI[2,], type='l', lty=2, col='red')
+legend('bottomleft' ,legend=c("Realised T", "95% CB of Predicted T "),
+       col=c("black","red" ), lty=1:2, cex=0.8)
 
 #################################################################################################
 # Test the identification issue via Bayesian approach
