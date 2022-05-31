@@ -11,9 +11,11 @@ library(tmvtnorm)
 
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
+
 ############################################################################################
 #------------------------sample size ratio bulk:tail = 4:1----------------------------------
 ############################################################################################
+
 set.seed(1234)
 
 d<-2
@@ -74,6 +76,7 @@ segments(0, u.z[2], u.z[1], u.z[2], col='red', lty=2)
 legend('bottomright',   legend = c("Tail Data", "Bulk Data", "Threshold"), lty=c(NA,NA,2),col = c('black', 'grey50', 'red'),         
        pch=c(20,20,NA)) 
 chiplot(Z, qlim=c(0.02,0.99), ask=F)
+
 
 X.4to1 <- X
 Z.4to1 <- Z
