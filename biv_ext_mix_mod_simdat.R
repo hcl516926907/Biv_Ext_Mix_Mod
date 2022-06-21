@@ -244,3 +244,47 @@ save(X.p05,Z.p05,u.x.p05,u.z.p05,
      X.p10,Z.p10,u.x.p10,u.z.p10, 
      X.p20,Z.p20,u.x.p20,u.z.p20, 
      file=file.path(dir.out,'simulation_data.RData'))
+
+#############################################################################################
+#-----------------use positive gamma to solve the left endpoint issue
+#############################################################################################
+
+set.seed(1234)
+
+d<-2
+a<-c(1.656,1.656) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
+beta<-c(0,0)
+sig<-c(0.571,0.451)
+gamma<-c(0.253,0.035)
+
+# Final beta parameter fixed at zero in estimation, so needs to be relative to this
+
+# Simulate with (conditionally) GP(sig,gamma) and (conditionally) exponential margins 
+X.tail<-sim.RevExpU.MGPD(n=250,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+
+#  GP(sig,gamma)
+plot(X.tail$X, pch=20, xlab=expression(X[1]),ylab=expression(X[2]))
+
+plot(X.tail$Z, pch=20, xlab=expression(X[1]),ylab=expression(X[2]))
+
+# C is to adjust the position of the tail distribution
+C <- c(3,1)
+u.x <- c(-min(X.tail$X[,1]),-min(X.tail$X[,2])) + C
+u.x.1 <- sig/gamma
+ 
+rho=0.65
+sigma <- matrix(c(1,rho,rho,0.8),ncol=2)
+
+# GP scale tail data combined with the bulk data
+set.seed(1234)
+X.bulk <- rtmvnorm(2250, mean=u.x-c(1.5,1.5), sigma=1.5*sigma, lower=c(0,0),upper=u.x)
+
+X <- rbind(X.bulk, sweep(X.tail$X,2,u.x,"+"))
+plot(X,pch=20, xlab='Z1', ylab='Z2', main='Simulated tNormal + GP Data',
+     col=c(rep('grey50',dim(X.bulk)[1]),rep('black',250)))
+segments(u.x[1], 0, u.x[1], u.x[2], col='red', lty=2)
+segments(0, u.x[2], u.x[1], u.x[2], col='red', lty=2)
+legend('bottomright',   legend = c("Tail Data", "Bulk Data", "Threshold"), lty=c(NA,NA,2),col = c('black', 'grey50', 'red'),         
+       pch=c(20,20,NA)) 
+
+chiplot(X, qlim=c(0.02,0.99), ask=F)
