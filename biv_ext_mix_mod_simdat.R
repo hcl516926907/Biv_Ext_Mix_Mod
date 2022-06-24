@@ -292,6 +292,7 @@ chiplot(X, qlim=c(0.02,0.99), ask=F)
 chiPlot(data=X, ylabel=expression(chi(q)~"prop=0.10"), chimod=NULL, nsim=1000, nq = 50, qmin = 0.5, qmax = 0.99)
 
 X.p10 <- X
+u.x.p10 <- u.x
 #------------------------------tail proportaiton 5%-----------------
 
 
@@ -338,5 +339,7 @@ chiplot(X, qlim=c(0.02,0.99), ask=F)
 chiPlot(data=X, ylabel=expression(chi(q)~"prop=0.05"), chimod=NULL, nsim=2000, nq = 50, qmin = 0.5, qmax = 0.99)
 
 X.p05 <- X
-save(X.p05, X.p10,
+u.x.p05 <- u.x
+save(X.p05, u.x.p05,
+     X.p10, u.x.p10,
      file=file.path(dir.out,'simulation_data_pos_shape.RData'))
