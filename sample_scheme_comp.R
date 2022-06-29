@@ -7,7 +7,7 @@ library(truncnorm)
 
 
 #--------------------tail proportation 20%----------------------
-n <- 10000
+n <- 500
 p <- 0.98
 #scheme 1 
 set.seed(1234)
@@ -34,7 +34,8 @@ plot(density(c(sp.bulk.2, sp.tail.1)), main='scheme 2')
 
 #plot(density(c(sp.bulk.2.1, sp.tail.1)), main='scheme 2')
 
-qqplot(c(sp.bulk.1, sp.tail.1),c(sp.bulk.2, sp.tail.1), main=paste('Scheme1 against Scheme 2, p=',p,sep=''))
+qqplot(c(sp.bulk.1, sp.tail.1),c(sp.bulk.2, sp.tail.1), 
+       main=paste('Scheme1 against Scheme 2, p=',p,', n=',n, sep=''))
 abline(0, 1, col = 'red')
 #qqplot(c(sp.bulk.1, sp.tail.1),c(sp.bulk.2.1, sp.tail.1), main='Scheme1 against Scheme 2')
 
@@ -59,7 +60,8 @@ plot(density(sp), main = 'scheme 3')
 plot(density(sp1), main = 'scheme 3.1')
 
 
-qqplot(c(sp.bulk.1, sp.tail.1),sp, main=paste('Scheme1 against Scheme 3, p=',p,sep=''))
+qqplot(c(sp.bulk.1, sp.tail.1),sp, 
+       main=paste('Scheme1 against Scheme 3, p=',p,', n=',n, sep=''))
 abline(0, 1, col = 'red')
 
 qqplot(c(sp.bulk.1, sp.tail.1),sp1, main=bquote("Scheme1 against Scheme 3," ~ pi == .(p1)))
