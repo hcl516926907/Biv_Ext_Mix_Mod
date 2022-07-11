@@ -7,7 +7,123 @@ dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ex
 
 load(file=file.path(dir.in,'simulation_data.RData'))
 
+#-------------------Compare the censored and uncensored estimators----------------------------
+n <- 50
+d<-2
+a<-c(1.656,1.656) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
+beta<-c(0,0)
+sig<-c(0.571,0.451)
+gamma<-c(0.253,0.035)
 
+
+t1 <- Sys.time()
+mle.cen.mat <- c()
+mle.ucen.mat <- c()
+sd.cen.mat <- c()
+sd.ucen.mat <- c()
+X.all <- list()
+cnt.issue <- 1
+for (i in 1:n){
+  
+  sim.dat <-sim.RevExpU.MGPD(n=200, d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+  X <- sim.dat$X
+  X.all[[i]] <- X
+  
+  # fit with censoring
+  fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
+                         dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                         maxit=5000)
+  for (j in 1:5){
+    if (j!=5){
+      fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
+                             dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                             marg.scale.start=fit1$mle[2:3], marg.shape.start=fit1$mle[4:5],
+                             dep.start=fit1$mle[1], maxit=5000)
+    }else{
+      fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
+                             dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                             marg.scale.start=fit1$mle[2:3], marg.shape.start=fit1$mle[4:5],
+                             dep.start=fit1$mle[1], maxit=5000, hessian=TRUE)
+    }
+  }
+  
+  mle.cen.mat <- rbind(mle.cen.mat, fit1$mle)
+  sd.cen.mat <- rbind(sd.cen.mat,  sqrt(diag(solve(fit1$hess))))
+  
+  # fit without censoring
+  fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
+                           dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                           maxit=5000)
+  
+  for (j in 1:5){
+    if (j!=5){
+      fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
+                               dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                               marg.scale.start=fit1.1$mle[2:3], marg.shape.start=fit1.1$mle[4:5],
+                               dep.start=fit1.1$mle[1], maxit=5000)
+    }else{
+      fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
+                               dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                               marg.scale.start=fit1.1$mle[2:3], marg.shape.start=fit1.1$mle[4:5],
+                               dep.start=fit1.1$mle[1], maxit=5000, hessian=TRUE)
+    } 
+  }
+  
+  mle.ucen.mat <- rbind(mle.ucen.mat, fit1.1$mle)
+  sd.ucen.mat <- rbind(sd.ucen.mat, sqrt(diag(solve(fit1.1$hess))))
+}
+
+t2 <- Sys.time()
+
+print(t2-t1)
+
+
+para.true <- c(a[1], sig, gamma)
+
+# calculate the bias
+bias.cen <- colMeans(mle.cen.mat) - para.true
+bias.ucen <- colMeans(mle.ucen.mat) - para.true
+
+# ??? calculate the average of sd
+# ??? var of mle
+sd.cen <- colMeans(sd.cen.mat, na.rm=TRUE)
+sd.ucen <- colMeans(sd.ucen.mat, na.rm=TRUE)
+
+sd.cen.1 <- apply(mle.cen.mat, 2, sd)
+sd.ucen.1 <- apply(mle.ucen.mat, 2, sd)
+
+# calculate the rmse--root mean squared error
+rmse.cen <- sqrt(bias.cen^2 + sd.cen^2)
+rmse.ucen <- sqrt(bias.ucen^2 + sd.ucen^2)
+
+rmse.cen.1 <- sqrt(bias.cen^2 + sd.cen.1^2)
+rmse.ucen.1 <- sqrt(bias.ucen^2 + sd.ucen.1^2)
+
+#calculate the rate of confidence intervals covering the true parameters
+upp.cen <- mle.cen.mat + 1.96*sd.cen.mat
+low.cen <- mle.cen.mat - 1.96*sd.cen.mat
+
+upp.cen.1 <- t(t(mle.cen.mat) + 1.96*sd.cen.1)
+low.cen.1 <- t(t(mle.cen.mat) - 1.96*sd.cen.1)
+
+upp.ucen <- mle.ucen.mat + 1.96*sd.ucen.mat
+low.ucen <- mle.ucen.mat - 1.96*sd.ucen.mat
+
+upp.ucen.1 <- t(t(mle.ucen.mat) + 1.96*sd.ucen.1)
+low.ucen.1 <- t(t(mle.ucen.mat) - 1.96*sd.ucen.1)
+
+cover.cen.ind <- t(t(upp.cen) >= para.true) & t(t(low.cen) <= para.true)
+cover.ucen.ind <- t(t(upp.ucen) >= para.true) & t(t(low.ucen) <= para.true)
+
+cover.cen.ind.1 <- t(t(upp.cen.1) >= para.true) & t(t(low.cen.1) <= para.true)
+cover.ucen.ind.1 <- t(t(upp.ucen.1) >= para.true) & t(t(low.ucen.1) <= para.true)
+
+colMeans(cover.cen.ind, na.rm=TRUE)
+colMeans(cover.ucen.ind, na.rm=TRUE)
+
+
+colMeans(cover.cen.ind.1, na.rm=TRUE)
+colMeans(cover.ucen.ind.1, na.rm=TRUE)
 #--------------------------------check threshold for each margin---------------------------------
 
 u.x <- u.x.p10
