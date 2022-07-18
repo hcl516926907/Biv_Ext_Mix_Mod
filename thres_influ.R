@@ -8,7 +8,7 @@ dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ex
 load(file=file.path(dir.in,'simulation_data.RData'))
 
 #-------------------Compare the censored and uncensored estimators----------------------------
-n <- 50
+n <- 1000
 d<-2
 a<-c(1.656,1.656) # NB this is 1/\alpha, where \alpha is the parameterization in Kiriliouk, Rootzen, Segers and Wadsworth. 
 beta<-c(0,0)
@@ -23,54 +23,77 @@ sd.cen.mat <- c()
 sd.ucen.mat <- c()
 X.all <- list()
 cnt.issue <- 1
-for (i in 1:n){
+i <- 1
+while (i <= 5){
   
   sim.dat <-sim.RevExpU.MGPD(n=200, d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
   X <- sim.dat$X
-  X.all[[i]] <- X
+
+  # fit without censoring
+  result1.1 <- try({
+    fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
+                             dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                             maxit=5000)
+    
+    for (j in 1:5){
+      if (j!=5){
+        fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
+                                 dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                                 marg.scale.start=fit1.1$mle[2:3], marg.shape.start=fit1.1$mle[4:5],
+                                 dep.start=fit1.1$mle[1], maxit=5000)
+      }else{
+        fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
+                                 dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                                 marg.scale.start=fit1.1$mle[2:3], marg.shape.start=fit1.1$mle[4:5],
+                                 dep.start=fit1.1$mle[1], maxit=5000, hessian=TRUE)
+      } 
+    }
+  }, silent=T)
+  
+  if (inherits(result1.1, 'try-error')){next}
   
   # fit with censoring
-  fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
+  result <- try({
+    fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
                          dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
                          maxit=5000)
-  for (j in 1:5){
-    if (j!=5){
-      fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
-                             dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
-                             marg.scale.start=fit1$mle[2:3], marg.shape.start=fit1$mle[4:5],
-                             dep.start=fit1$mle[1], maxit=5000)
-    }else{
-      fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
-                             dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
-                             marg.scale.start=fit1$mle[2:3], marg.shape.start=fit1$mle[4:5],
-                             dep.start=fit1$mle[1], maxit=5000, hessian=TRUE)
+    for (j in 1:5){
+      if (j!=5){
+        fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
+                               dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                               marg.scale.start=fit1$mle[2:3], marg.shape.start=fit1$mle[4:5],
+                               dep.start=fit1$mle[1], maxit=5000)
+      }else{
+        fit1<-fit.MGPD.RevExpU(x=X, u=rep(0,2), std=F,
+                               dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                               marg.scale.start=fit1$mle[2:3], marg.shape.start=fit1$mle[4:5],
+                               dep.start=fit1$mle[1], maxit=5000, hessian=TRUE)
+      }
     }
+  }, silent=T)
+
+  
+  if (inherits(result,'try-error')) {next}
+  
+  sd1 <- sqrt(diag(solve(fit1$hess)))
+  sd1.1 <- sqrt(diag(solve(fit1.1$hess)))
+  
+  if (!((anyNA(sd1))|(anyNA(sd1.1)))){
+    mle.cen.mat <- rbind(mle.cen.mat, fit1$mle)
+    sd.cen.mat <- rbind(sd.cen.mat,  sd1)
+    
+    mle.ucen.mat <- rbind(mle.ucen.mat, fit1.1$mle)
+    sd.ucen.mat <- rbind(sd.ucen.mat, sd1.1)
+    
+    X.all[[i]] <- X
+    if (! i %% 25){
+      print(paste('Done',i,'simulations.'))
+      t2 <- Sys.time()
+      print(t2-t1)
+    }
+    i <- i+1
   }
-  
-  mle.cen.mat <- rbind(mle.cen.mat, fit1$mle)
-  sd.cen.mat <- rbind(sd.cen.mat,  sqrt(diag(solve(fit1$hess))))
-  
-  # fit without censoring
-  fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
-                           dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
-                           maxit=5000)
-  
-  for (j in 1:5){
-    if (j!=5){
-      fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
-                               dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
-                               marg.scale.start=fit1.1$mle[2:3], marg.shape.start=fit1.1$mle[4:5],
-                               dep.start=fit1.1$mle[1], maxit=5000)
-    }else{
-      fit1.1<-fit.MGPD.RevExpU(x=X, u=apply(X,2,min)-0.01, std=F,
-                               dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
-                               marg.scale.start=fit1.1$mle[2:3], marg.shape.start=fit1.1$mle[4:5],
-                               dep.start=fit1.1$mle[1], maxit=5000, hessian=TRUE)
-    } 
-  }
-  
-  mle.ucen.mat <- rbind(mle.ucen.mat, fit1.1$mle)
-  sd.ucen.mat <- rbind(sd.ucen.mat, sqrt(diag(solve(fit1.1$hess))))
+
 }
 
 t2 <- Sys.time()
@@ -146,3 +169,4 @@ plot(dat)
 gpd.fitrange(dat, umin=8,umax=12,nint=20)
 m1<-gpd.fit(dat,thresh=u)
 gpd.diag(m1)
+
