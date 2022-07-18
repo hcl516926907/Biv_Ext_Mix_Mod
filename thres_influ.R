@@ -24,7 +24,7 @@ sd.ucen.mat <- c()
 X.all <- list()
 cnt.issue <- 1
 i <- 1
-while (i <= 5){
+while (i <= n){
   
   sim.dat <-sim.RevExpU.MGPD(n=200, d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
   X <- sim.dat$X
