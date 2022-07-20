@@ -7,6 +7,7 @@ source("KRSW/Gumbel_T_Functions.r")
 source("KRSW/ModelDiagnosticsNewNames.r")
 library(evd)
 library(tmvtnorm)
+library(mvtnorm)
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
@@ -111,29 +112,83 @@ prior.u <- function(theta, u.ind, y){
   }
 }
 
+prior.jef <- function(theta,cov.ind, cov.dim){
+  mat <- matrix(theta[cov.ind], nrow=cov.dim)
+  return(det(mat)^(-cov.dim/2-1))
+}
+
 #full likelihood
-ll.tgt <- function(theta, y, u.ind, a.ind,lam.ind,lamfix=FALSE, sig.ind, gamma.ind,
-                   marg.scale.ind, marg.shape.ind, balthresh=FALSE){
+ll.tgt <- function(theta, y, u.ind, mu.ind, cov.ind, cov.dim=2,
+                   a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                   marg.scale.ind, marg.shape.ind, balthresh=F){
   u <- theta[u.ind]
+  #likelihood of the tail
   llt <- -nll.powunif.GPD(theta=theta, y=y, u=u, a.ind=a.ind, lam.ind=lam.ind,
                          marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
                          lamfix=lamfix, balthresh=balthresh)
   # to be done
-  llb <- dtmvnorm(2375, mean=u.x-c(2,1.8), sigma=1.5*sigma, lower=c(0,0),upper=u)
-  lp1 <- log(prior.a(theta,a.ind))
-  if (lamfix==FALSE){
-    lp2 <- log(prior.lam(theta, lam.ind))
-    return(ll + lp1 + lp2)
+  #likelihood of the bulk
+  llb <- dtmvnorm(y, mean=theta[mu.ind], sigma=sigma, lower=c(0,0),upper=u, log=T)
+  lp.a <- log(prior.a(theta,a.ind))
+  lp.lam <- log(prior.lam(theta, lam.ind))
+  lp.u <- log(prior.u(theta, u.ind, y))
+  lp.jef <- log(prior.jef(theta,cov.ind, cov.dim))
+  if (lamfix==F){
+    return(llb + lp.jef + lp.u + llt + lp.a + lp.lam)
   }
   else{
-    return(ll + lp1)
+    return(llb + lp.jef + lp.u + llt + lp.a)
   }
-  
 }
 
 
 p.log <- function(x){
-  return(ll.tgt(theta=x, y=exp(y), u.ind = 1:2, a.ind=3, sig.ind=4:5,
-                gamma.ind=6:7, marg.scale.ind=1:2, marg.shape.ind=1:2, lamfix=TRUE))
+  return(ll.tgt(theta=x, y=exp(y), mu.ind = 8:9, cov.ind=10:13, u.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+}
+
+#----------------------------MH Algorithm---------------------------
+res <- MCMC.parallel(p.log, n=itr,
+                     init=c(runif(1,0,5),runif(1,0,5),runif(1,0,2)),n.chain=3,n.cpu=6,
+                     scale=c(0.08,0.09,0.09),adapt=FALSE)
+
+mh_mcmc <- function(ll, itr, init=c(runif(9,0,1),c(1,0,0,1)),scale, dim.cov=2 ){
+  for (i in 1:itr){
+    x.old <- init
+    # parameters other than matrix elements
+    vec.idx <- 1:(length(init)-dim.cov^2)
+    x.old.b1 <- x.old[vec.idx]
+    x.old.b2 <- x.old[-vec.idx]
+    
+    x.new.b1 <- rmvnorm(1,mean=x.old.b1, sigma=diag(scale[vec.idx]))
+    # move from current state to proposed state
+    trans.out <- ll.tgt(x.old,exp(y),exp(u),a.ind,lam.ind,lamfix=FALSE) + 
+      dtmvnorm(x.new,mean=x.old,
+               sigma=eta*diag(length(x.old)),
+               lower=c(0,0,0),
+               log=TRUE)
+    # move from proposed state to current state
+    trans.in <- ll.tgt(x.new,exp(y),exp(u),a.ind,lam.ind,lamfix=FALSE) + 
+      dtmvnorm(x.old,mean=x.new,
+               sigma=eta*diag(length(x.new)),
+               lower=c(0,0,0),
+               log=TRUE)
+    log.accept.ratio <- trans.in - trans.out
+    
+    #acceptance rate on a log scale
+    if (log(unif[i]) < min(0,log.accept.ratio)){
+      x.old <- x.new
+      
+    }else{
+      x.old <- x.old
+    }
+    samples = rbind(samples,x.old)
+    if (i%%500==0){
+      cat(c("Done",i,'itertations \n'))
+    }
+  }
+  
 }
 
