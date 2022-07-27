@@ -22,6 +22,7 @@ cond <- (X[,1]>u.x[1]) | (X[,2]>u.x[2])
 X.gpd <- cbind(X[cond,1] - u.x[1],
                X[cond,2] - u.x[2])
 
+y <- X.p05
 
 #------------------------------MLE of bivariate GP model----------------------
 #with censoring
@@ -38,8 +39,8 @@ for (i in 1:5){
 
 sd1 <- sqrt(diag(solve(fit1$hess)))
 
-upp1 <- fit1$mle + 1.96*sd
-low1 <- fit1$mle - 1.96*sd
+upp1 <- fit1$mle + 1.96*sd1
+low1 <- fit1$mle - 1.96*sd1
 
 #without censoring
 fit1.1<-fit.MGPD.RevExpU(x=X.gpd, u=apply(X.gpd,2,min)-0.1, std=F,
@@ -56,8 +57,8 @@ for (i in 1:10){
 
 sd1.1 <- sqrt(diag(solve(fit1.1$hess)))
 
-upp1.1 <- fit1.1$mle + 1.96*sd
-low1.1 <- fit1.1$mle - 1.96*sd
+upp1.1 <- fit1.1$mle + 1.96*sd1.1
+low1.1 <- fit1.1$mle - 1.96*sd1.1
 
 
 #-----------------------Bayesian inference of the mixture model----------------
@@ -90,6 +91,7 @@ prior.sig <- function(theta, sig.ind){
   for (i in 1:d){
     prior <- prior*dunif(theta[sig.ind][i],0,100)
   }
+  return(prior)
 }
 
 #prior for gamma
@@ -99,56 +101,70 @@ prior.gamma <- function(theta, gamma.ind){
   for (i in 1:d){
     prior <- prior*dunif(theta[gamma.ind][i],0,1)
   }
+  return(prior)
 }
 
 #prior for thresholds
-prior.u <- function(theta, u.ind, y){
-  d <- length(u.ind)
-  lb <- apply(y, 2, quantile, prob=0.9)
-  ub <- apply(y, 2, max)
+prior.thres <- function(theta, thres.ind, X){
+  d <- length(thres.ind)
+  lb <- apply(X, 2, quantile, prob=0.9)
+  ub <- apply(X, 2, max)
   prior <- 1
   for (i in 1:d){
-    prior <- prior*dunif(theta[u.ind][i], lb[i], ub[i])
+    prior <- prior*dunif(theta[thres.ind][i], lb[i], ub[i])
   }
+  return(prior)
 }
 
-prior.jef <- function(theta,cov.ind, cov.dim){
-  mat <- matrix(theta[cov.ind], nrow=cov.dim)
-  return(det(mat)^(-cov.dim/2-1))
+prior.jef <- function(theta,cov.ind, d){
+  mat <- matrix(theta[cov.ind], nrow=d)
+  return(det(mat)^(-d/2-1))
 }
 
 #full likelihood
-ll.tgt <- function(theta, y, u.ind, mu.ind, cov.ind, cov.dim=2,
+ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
                    a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
                    marg.scale.ind, marg.shape.ind, balthresh=F){
-  u <- theta[u.ind]
+  thres <- theta.all[thres.ind]
+  
+  cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
+  
+  y.tail <- cbind(X[cond,1] - thres[1],
+                 X[cond,2] - thres[2])
+  
+  y.bulk <- X[!cond,]
+  
   #likelihood of the tail
-  llt <- -nll.powunif.GPD(theta=theta, y=y, u=u, a.ind=a.ind, lam.ind=lam.ind,
+  theta <- theta.all[-c(thres.ind, mu.ind, cov.ind)]
+  llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=rep(0,d), a.ind=a.ind, lam.ind=lam.ind,
                          marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
                          lamfix=lamfix, balthresh=balthresh)
-  # to be done
   #likelihood of the bulk
-  llb <- dtmvnorm(y, mean=theta[mu.ind], sigma=sigma, lower=c(0,0),upper=u, log=T)
-  lp.a <- log(prior.a(theta,a.ind))
-  lp.lam <- log(prior.lam(theta, lam.ind))
-  lp.u <- log(prior.u(theta, u.ind, y))
-  lp.jef <- log(prior.jef(theta,cov.ind, cov.dim))
+  Sigma <- matrix(theta.all[cov.ind], nrow=2)
+  llb <- sum(dtmvnorm(y.bulk, mean=theta.all[mu.ind], sigma=Sigma, lower=c(0,0),upper=thres, log=T))
+  #priors
+  lp.a <- log(prior.a(theta.all, a.ind))
+  lp.thres <- log(prior.thres(theta.all, thres.ind, X))
+  lp.jef <- log(prior.jef(theta.all, cov.ind, d))
+  
   if (lamfix==F){
-    return(llb + lp.jef + lp.u + llt + lp.a + lp.lam)
+    lp.lam <- log(prior.lam(theta.all, lam.ind))
+    return(llb + lp.jef + lp.thres + llt + lp.a + lp.lam)
   }
   else{
-    return(llb + lp.jef + lp.u + llt + lp.a)
+    return(llb + lp.jef + lp.thres + llt + lp.a)
   }
 }
 
 
 p.log <- function(x){
-  return(ll.tgt(theta=x, y=exp(y), mu.ind = 8:9, cov.ind=10:13, u.ind = 1:2, 
+  return(ll.tgt(theta.all=x, X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
                 a.ind=3, lamfix=TRUE, 
                 sig.ind=4:5, gamma.ind=6:7, 
                 marg.scale.ind=1:2, marg.shape.ind=1:2))
 }
 
+p.log(c(u.x.p05, runif(7),1,0,0,1))
 #----------------------------MH Algorithm---------------------------
 res <- MCMC.parallel(p.log, n=itr,
                      init=c(runif(1,0,5),runif(1,0,5),runif(1,0,2)),n.chain=3,n.cpu=6,
