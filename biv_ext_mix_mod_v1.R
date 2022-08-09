@@ -164,13 +164,13 @@ p.log <- function(x){
                 marg.scale.ind=1:2, marg.shape.ind=1:2))
 }
 
-p.log(c(u.x.p05, runif(7),1,0,0,1))
+p.log(c( c(5,6), runif(7),1,0,0,1))
 #----------------------------MH Algorithm---------------------------
 res <- MCMC.parallel(p.log, n=itr,
                      init=c(runif(1,0,5),runif(1,0,5),runif(1,0,2)),n.chain=3,n.cpu=6,
                      scale=c(0.08,0.09,0.09),adapt=FALSE)
 
-mh_mcmc <- function(ll, itr, init=c(runif(9,0,1),c(1,0,0,1)),scale, dim.cov=2 ){
+mh_mcmc <- function(ll, itr, init=c(runif(9,0,1),c(1,0,0,1)), scale, dim.cov=2 ){
   for (i in 1:itr){
     x.old <- init
     # parameters other than matrix elements
