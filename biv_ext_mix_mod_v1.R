@@ -143,7 +143,7 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   
   #likelihood of the tail
   theta <- theta.all[-c(thres.ind, mu.ind, cov.ind)]
-  llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=rep(0,d), a.ind=a.ind, lam.ind=lam.ind,
+  llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=rep(0,d), a.ind=a.ind-d, lam.ind=lam.ind-d,
                           sig.ind=sig.ind-d, gamma.ind=gamma.ind-d,
                          marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
                          lamfix=lamfix, balthresh=balthresh)
@@ -157,7 +157,7 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   
   lp.thres <- log(prior.thres(theta.all, thres.ind, X))
   lp.jef <- log(prior.jef(theta.all, cov.ind, d))
-  
+
   if (lamfix==F){
     lp.lam <- log(prior.lam(theta.all, lam.ind))
     return(llb + llt + n.bulk*log(pi) + n.tail*log(1-pi) + lp.jef + lp.thres + 
@@ -366,22 +366,23 @@ mh_mcmc_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
     }
   }
   return(samples)
-  
 }
+
+
 burnin <- 3000
-n.itr <- 13000
+n.itr <-  5000
 set.seed(1234)
 init <- c( u.x, runif(7),1,0,0,1)
-scale <- c(#rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
+scale <-  c(0.8*c(#rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
            0.08, #a (3)  (1.656)
-           0.0075, #sigma1 (4) (0.571)
-           0.0005,  #sigma2 (5) (0.451)
-           0.008,  #gamma1 (6) (0.253)
-           0.001,   #gamma2 (7) (0.035)
-           0.0008,    #mu1 (8)
-           0.0008,    #mu2 (9)
+           0.007, #sigma1 (4) (0.571)
+           0.001,  #sigma2 (5) (0.451)
+           0.007,  #gamma1 (6) (0.253)
+           0.0005   #gamma2 (7) (0.035)
+           ),
+           0.0008,    #mu1 (8) (3.550)
+           0.0008,    #mu2 (9) (4.413)
            1000)       #cov (10-13)
-n.itr <- 5000
 t1 <- Sys.time()
 res.fix <- mh_mcmc_fix(p.log, n.itr=n.itr, init=init,scale=scale)
 t2 <- Sys.time()
@@ -389,9 +390,108 @@ print(t2-t1)
 acc1 <- length(unique(res.fix[burnin:n.itr,3]))/(n.itr - burnin)
 acc2 <- length(unique(res.fix[burnin:n.itr,10]))/(n.itr - burnin)
 print(c(acc1,acc2))
-plot(res.fix[,3],type='l')
+plot(res.fix[,8],type='l')
 
 
+
+mh_mcmc_fix_opt <- function(ll, n.itr, init, scale, dim.cov=2 ){
+  samples <- init
+  x.old <- init
+  unif.b1 <- runif(n.itr)
+  unif.b2 <- runif(n.itr)
+  vec.idx <- 1:(length(x.old))
+  for (i in 1:n.itr){
+    # parameters other than matrix elements
+    x.old.b1 <- x.old[vec.idx]
+    x.old.b2 <- x.old[-vec.idx]
+    #-------------------------------------------------------------------
+    # update block 1 with random walk proposal. 
+    x.new.b1 <- rmvnorm(1,mean=x.old.b1, sigma=diag(scale[vec.idx]))
+    x.new.b1 <- x.old.b1
+    
+    
+    x.new <- x.old
+    x.new[vec.idx] <- x.new.b1
+    # move from current state to proposed state
+    trans.out.b1 <- ll(x.old)  + 
+      dmvnorm(x.new.b1, mean=x.old.b1,
+              sigma=diag(scale[vec.idx]),
+              log=TRUE)
+    # move from proposed state to current state
+    trans.in.b1 <- 1
+      ll(x.new)  +
+      dmvnorm(x.old.b1,mean=x.new.b1,
+              sigma=diag(scale[vec.idx]),
+              log=TRUE)
+    log.accept.ratio.b1 <- trans.in.b1 - trans.out.b1
+    #acceptance rate on a log scale
+    if (log(unif.b1[i]) < min(0,log.accept.ratio.b1)){
+      x.old <- x.new
+    }else{
+      x.old <- x.old
+    }
+    #------------------------------------------------------------------
+    # update block 2 with whishart proposal. 
+#x.new.b2 <- as.vector(rwishart(nu=scale[-vec.idx], matrix(x.old.b2, nrow=dim.cov)/scale[-vec.idx]))
+    # x.new.b2 <- x.old.b2
+    # 
+    # 
+    # x.new <- x.old
+    # x.new[-vec.idx] <- x.new.b2
+    # # move from current state to proposed state
+    # trans.out.b2 <- ll(c(thres,x.old)) + 
+    #   dwishart(matrix(x.new.b2, nrow=dim.cov), 
+    #            nu=scale[-vec.idx],
+    #            S=matrix(x.old.b2, nrow=dim.cov)/scale[-vec.idx],
+    #            log=TRUE)
+    # # move from proposed state to current state
+    # trans.in.b2 <- ll(c(thres,x.new)) + 
+    #   dwishart(matrix(x.old.b2, nrow=dim.cov),
+    #            nu=scale[-vec.idx],
+    #            S=matrix(x.new.b2, nrow=dim.cov)/scale[-vec.idx],
+    #            log=TRUE)
+    # log.accept.ratio.b2 <- trans.in.b2 - trans.out.b2
+    # #acceptance rate on a log scale
+    # if (log(unif.b2[i]) < min(0,log.accept.ratio.b2)){
+    #   x.old <- x.new
+    # }else{
+    #   x.old <- x.old
+    # }
+    samples = rbind(samples,c(thres,x.old))
+    if (i%%500==0){
+      cat(c("Done",i,'itertations \n'))
+    }
+  }
+  return(samples)
+}
+
+
+p.log.bulk.fix <- function(x){
+  return(ll.tgt(theta.all=c(u.x, x , u.x-c(2,1.8), 1,0,0,1), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+}
+
+
+system.time(mh_mcmc_fix_opt(p.log.bulk.fix, n.itr=2000, init=init[3:7],scale=scale))
+
+t1 <- Sys.time()
+system.time( res.bulk.fix <- MCMC.parallel(p.log.bulk.fix, n=13000,
+                           init=runif(5),n.chain=3,n.cpu=6,
+                           scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
+                           packages=c('mvtnorm','tmvtnorm'))
+)
+t2 <- Sys.time()
+print(t2-t1)
+
+
+test.para <- 0.8*c(1.656, 0.571, 0.451, 0.253, 0.035)
+test.para <- rep(0.1,5)
+print(p.log.bulk.fix(test.para) - p.log.gpd.2(test.para))
+
+p.log.bulk.fix(test.para)
+p.log.gpd.2(test.para)
 #----------------------only GP distribution-------------------------
 library(adaptMCMC)
 library(posterior)
@@ -474,24 +574,20 @@ itr <-  13000
 burnin <- 3000
 #c(0.09,0.095,0.095)
 #c(0.08, 0.006, 0.001, 0.008, 0.002)
-res <- MCMC.parallel(p.log.gpd.2, n=itr,
+res.gpd <- MCMC.parallel(p.log.gpd.2, n=itr,
                      init=runif(5,0,1),n.chain=3,n.cpu=6,
                      scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
                      packages=c('mvtnorm','tmvtnorm'))
 t2 <- Sys.time()
 print(t2-t1)
 
-system.time( MCMC.parallel(p.log.gpd.2, n=500,
-                           init=runif(5,0,1),n.chain=3,n.cpu=6,
-                           scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
-                           packages=c('mvtnorm','tmvtnorm'))
-             )
 
 acc1 <- length(unique(res[[1]]$samples[burnin:itr,2]))/(itr-burnin)
 acc2 <- length(unique(res[[2]]$samples[burnin:itr,2]))/(itr-burnin)
 acc3 <- length(unique(res[[3]]$samples[burnin:itr,2]))/(itr-burnin)
 print(c(acc1,acc2,acc3))
 
+res <- res.bulk.fix
 plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
      main='Traceplot of a1')
 lines(burnin:itr,res[[2]]$samples[burnin:itr,1], type='l', col='red')
