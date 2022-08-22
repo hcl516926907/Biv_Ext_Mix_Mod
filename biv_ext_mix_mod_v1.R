@@ -96,6 +96,19 @@ prior.sig <- function(theta, sig.ind){
   return(prior)
 }
 
+n.sp <- 10000
+plot(density(runif(n.sp,0,100)- runif(n.sp)*runif(n.sp, 3.5, 10 )))
+plot(density(runif(n.sp,0,100)- runif(n.sp)*runif(n.sp, 4.3, 8 )))
+#prior for sigma* that is not dependent on the threshold
+prior.sig1 <- function(theta, sig.ind){
+  d <- length(sig.ind)
+  prior <- 1
+  for (i in 1:d){
+    prior <- prior*dunif(theta[sig.ind][i],-15,100)
+  }
+  return(prior)
+}
+
 #prior for gamma
 prior.gamma <- function(theta, gamma.ind){
   d <- length(gamma.ind)
@@ -109,8 +122,8 @@ prior.gamma <- function(theta, gamma.ind){
 #prior for thresholds
 prior.thres <- function(theta, thres.ind, X){
   d <- length(thres.ind)
-  lb <- apply(X, 2, quantile, prob=0.5)
-  ub <- apply(X, 2, max)
+  lb <- apply(X, 2, quantile, prob=0.7)
+  ub <- apply(X, 2, quantile, prob=0.99)
   prior <- 1
   for (i in 1:d){
     prior <- prior*dunif(theta[thres.ind][i], lb[i], ub[i])
@@ -182,9 +195,6 @@ p.log(c( c(5.4,6), rep(1,7), 1,0,0,1))
 p.log(c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2))
 
 #----------------------------MH Algorithm---------------------------
-res <- MCMC.parallel(p.log, n=itr,
-                     init=c(runif(1,0,5),runif(1,0,5),runif(1,0,2)),n.chain=3,n.cpu=6,
-                     scale=c(0.08,0.09,0.09),adapt=FALSE)
 
 #paramter order: u1,u2,a,sigma1,sigma2,gamma1,gamma2,mu1,m2,COV
 mh_mcmc <- function(ll, n.itr, init, scale, dim.cov=2 ){
@@ -252,218 +262,263 @@ mh_mcmc <- function(ll, n.itr, init, scale, dim.cov=2 ){
   
 }
 
-set.seed(1234)
-init <- c( c(6,7), runif(7),1,0,0,1)
-scale <- c(rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
-           0.001, #a (3)  (1.656)
-           0.001, #sigma1 (4) (0.571)
-           0.001,  #sigma2 (5) (0.451)
-           0.01,  #gamma1 (6) (0.253)
-           0.001,   #gamma2 (7) (0.035)
-           0.005,    #mu1 (8)
-           0.005,    #mu2 (9)
-           80)       #cov (10-13)
-n.itr <- 10000
-res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
-
-plot(res[,1],type='l', main='Traceplot of u1')
-abline(h=u.x[1],col="red")
-
-plot(res[,2],type='l', main='Traceplot of u2')
-abline(h=u.x[2],col="red")
-
-plot(res[,3],type='l', main='Traceplot of a', ylim=c(0,2))
-abline(h=1.656,col="red")
-
-plot(res[,4],type='l', main='Traceplot of sigma1')
-abline(h=0.571,col="red")
-
-plot(res[,5],type='l', main='Traceplot of sigma2', ylim=c(0,1))
-abline(h=0.451,col="red")
-
-plot(res[,6],type='l', main='Traceplot of gamma1', ylim=c(0,1))
-abline(h=0.253,col="red")
-
-plot(res[,7],type='l', main='Traceplot of gamma2', ylim=c(0,1))
-abline(h=0.035,col="red")
-
-plot(res[,8],type='l', main='Traceplot of mu1')
-abline(h=3.550,col="red")
-
-plot(res[,9],type='l', main='Traceplot of mu2')
-abline(h=4.413,col="red")
-
-plot(res[,10],type='l', main='Traceplot of a11')
-abline(h=1.5,col="red")
-
-plot(res[,11],type='l', main='Traceplot of a12')
-abline(h=0.975,col="red")
-
-plot(res[,13],type='l', main='Traceplot of a22')
-abline(h=1.2,col="red")
-
-#---------------MH for mixture model with fixed threshold---------------
-mh_mcmc_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
-  samples <- init
-  x.old <- init[-c(1,2)]
-  thres <- init[c(1,2)]
-  unif.b1 <- runif(n.itr)
-  unif.b2 <- runif(n.itr)
-  vec.idx <- 1:(length(x.old)-dim.cov^2)
-  for (i in 1:n.itr){
-    # parameters other than matrix elements
-    x.old.b1 <- x.old[vec.idx]
-    x.old.b2 <- x.old[-vec.idx]
+#optimize the running time by: 1. avoid calculating log likelihood of rejected points repeatedly.
+# 2. combine the two blocks
+mh_mcmc_1 <- function(ll, n.itr, init, scale, dim.cov=2 ){
+  samples <- matrix(NA, nrow=n.itr, ncol=length(init))
+  samples[1,] <- init
+  unif <- runif(n.itr)
+  vec.idx <- 1:(length(init)-dim.cov^2)
+  ll.val <- rep(NA, n.itr)
+  ll.val[1] <- ll(samples[1,])
+  for (i in 2:n.itr){
     #-------------------------------------------------------------------
     # update block 1 with random walk proposal. 
-    x.new.b1 <- rmvnorm(1,mean=x.old.b1, sigma=diag(scale[vec.idx]))
-    x.new <- x.old
-    x.new[vec.idx] <- x.new.b1
+    x.new.b1 <- rmvnorm(1,mean=samples[i-1,][vec.idx], sigma=diag(scale[vec.idx]))
+    x.new.b2 <- as.vector(rwishart(nu=scale[-vec.idx], matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale[-vec.idx]))
+    x.new <- c(x.new.b1, x.new.b2)
     # move from current state to proposed state
-    trans.out.b1 <- ll(c(thres,x.old)) + 
-      dmvnorm(x.new.b1, mean=x.old.b1,
+    trans.out <- ll.val[i-1] + 
+      dmvnorm(x.new.b1, 
+              mean=samples[i-1,][vec.idx],
               sigma=diag(scale[vec.idx]),
-              log=TRUE)
-    # move from proposed state to current state
-    trans.in.b1 <- ll(c(thres,x.new)) + 
-      dmvnorm(x.old.b1,mean=x.new.b1,
-              sigma=diag(scale[vec.idx]),
-              log=TRUE)
-    log.accept.ratio.b1 <- trans.in.b1 - trans.out.b1
-    #acceptance rate on a log scale
-    if (log(unif.b1[i]) < min(0,log.accept.ratio.b1)){
-      x.old <- x.new
-    }else{
-      x.old <- x.old
-    }
-    #------------------------------------------------------------------
-    # update block 2 with whishart proposal. 
-    x.new.b2 <- as.vector(rwishart(nu=scale[-vec.idx], matrix(x.old.b2, nrow=dim.cov)/scale[-vec.idx]))
-    x.new <- x.old
-    x.new[-vec.idx] <- x.new.b2
-    # move from current state to proposed state
-    trans.out.b2 <- ll(c(thres,x.old)) + 
+              log=TRUE) + 
       dwishart(matrix(x.new.b2, nrow=dim.cov), 
                nu=scale[-vec.idx],
-               S=matrix(x.old.b2, nrow=dim.cov)/scale[-vec.idx],
+               S=matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale[-vec.idx],
                log=TRUE)
     # move from proposed state to current state
-    trans.in.b2 <- ll(c(thres,x.new)) + 
-      dwishart(matrix(x.old.b2, nrow=dim.cov),
+    ll.val[i] <- ll(x.new)
+    trans.in <- ll.val[i] + 
+      dmvnorm(samples[i-1,][vec.idx],
+              mean=x.new.b1,
+              sigma=diag(scale[vec.idx]),
+              log=TRUE) + 
+      dwishart(matrix(samples[i-1,][-vec.idx], nrow=dim.cov),
                nu=scale[-vec.idx],
                S=matrix(x.new.b2, nrow=dim.cov)/scale[-vec.idx],
                log=TRUE)
-    log.accept.ratio.b2 <- trans.in.b2 - trans.out.b2
+    log.accept.ratio <- trans.in - trans.out
     #acceptance rate on a log scale
-    if (log(unif.b2[i]) < min(0,log.accept.ratio.b2)){
-      x.old <- x.new
+    if (log(unif[i]) < min(0,log.accept.ratio)){
+      samples[i,] <- x.new
     }else{
-      x.old <- x.old
-    }
-    samples = rbind(samples,c(thres,x.old))
-    if (i%%500==0){
-      cat(c("Done",i,'itertations \n'))
+      samples[i,] <- samples[i-1,]
+      ll.val[i] <- ll.val[i-1]
     }
   }
   return(samples)
 }
 
 
-burnin <- 3000
-n.itr <-  5000
 set.seed(1234)
-init <- c( u.x, runif(7),1,0,0,1)
-scale <-  c(0.8*c(#rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
-           0.08, #a (3)  (1.656)
-           0.007, #sigma1 (4) (0.571)
-           0.001,  #sigma2 (5) (0.451)
-           0.007,  #gamma1 (6) (0.253)
-           0.0005   #gamma2 (7) (0.035)
-           ),
-           0.0008,    #mu1 (8) (3.550)
-           0.0008,    #mu2 (9) (4.413)
+init <- c( c(6,7), runif(7),1,0,0,1)
+scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
+           0.064, #a (3)  (1.656)
+           0.0056, #sigma1 (4) (0.571)
+           0.0008,  #sigma2 (5) (0.451)
+           0.0056,  #gamma1 (6) (0.253)
+           0.0004,   #gamma2 (7) (0.035)
+           0.0025,    #mu1 (8)
+           0.0025,    #mu2 (9)
            1000)       #cov (10-13)
+n.itr <- 10000
+
 t1 <- Sys.time()
-res.fix <- mh_mcmc_fix(p.log, n.itr=n.itr, init=init,scale=scale)
+res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
 t2 <- Sys.time()
 print(t2-t1)
-acc1 <- length(unique(res.fix[burnin:n.itr,3]))/(n.itr - burnin)
-acc2 <- length(unique(res.fix[burnin:n.itr,10]))/(n.itr - burnin)
-print(c(acc1,acc2))
-plot(res.fix[,8],type='l')
+
+t1 <- Sys.time()
+res1 <- mh_mcmc_1(p.log, n.itr=n.itr, init=init,scale=scale)
+t2 <- Sys.time()
+print(t2-t1)
 
 
+plot(res1[,1],type='l', main='Traceplot of u1')
+abline(h=u.x[1],col="red")
 
-mh_mcmc_fix_opt <- function(ll, n.itr, init, scale, dim.cov=2 ){
-  samples <- init
-  x.old <- init
-  unif.b1 <- runif(n.itr)
-  unif.b2 <- runif(n.itr)
-  vec.idx <- 1:(length(x.old))
-  for (i in 1:n.itr){
-    # parameters other than matrix elements
-    x.old.b1 <- x.old[vec.idx]
-    x.old.b2 <- x.old[-vec.idx]
+plot(res1[,2],type='l', main='Traceplot of u2')
+abline(h=u.x[2],col="red")
+
+plot(res1[,3],type='l', main='Traceplot of a', ylim=c(0,2))
+abline(h=1.656,col="red")
+
+plot(res1[,4],type='l', main='Traceplot of sigma1')
+abline(h=0.571,col="red")
+
+plot(res1[,5],type='l', main='Traceplot of sigma2', ylim=c(0,1))
+abline(h=0.451,col="red")
+
+plot(res1[,6],type='l', main='Traceplot of gamma1', ylim=c(0,1))
+abline(h=0.253,col="red")
+
+plot(res1[,7],type='l', main='Traceplot of gamma2', ylim=c(0,1))
+abline(h=0.035,col="red")
+
+plot(res1[,8],type='l', main='Traceplot of mu1')
+abline(h=3.550,col="red")
+
+plot(res1[,9],type='l', main='Traceplot of mu2')
+abline(h=4.413,col="red")
+
+plot(res1[,10],type='l', main='Traceplot of a11')
+abline(h=1.5,col="red")
+
+plot(res1[,11],type='l', main='Traceplot of a12')
+abline(h=0.975,col="red")
+
+plot(res1[,13],type='l', main='Traceplot of a22')
+abline(h=1.2,col="red")
+
+
+#fix the threshold
+mh_mcmc_1_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
+  samples <- matrix(NA, nrow=n.itr, ncol=length(init))
+  samples[1,] <- init
+  unif <- runif(n.itr)
+  vec.idx <- 1:(length(init)-dim.cov^2)
+  ll.val <- rep(NA, n.itr)
+  ll.val[1] <- ll(c(u.x,samples[1,]))
+  for (i in 2:n.itr){
     #-------------------------------------------------------------------
     # update block 1 with random walk proposal. 
-    x.new.b1 <- rmvnorm(1,mean=x.old.b1, sigma=diag(scale[vec.idx]))
-    x.new.b1 <- x.old.b1
-    
-    
-    x.new <- x.old
-    x.new[vec.idx] <- x.new.b1
+    x.new.b1 <- rmvnorm(1,mean=samples[i-1,][vec.idx], sigma=diag(scale[vec.idx]))
+    x.new.b2 <- as.vector(rwishart(nu=scale[-vec.idx], matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale[-vec.idx]))
+    x.new <- c(x.new.b1, x.new.b2)
     # move from current state to proposed state
-    trans.out.b1 <- ll(x.old)  + 
-      dmvnorm(x.new.b1, mean=x.old.b1,
+    trans.out <- ll.val[i-1] + 
+      dmvnorm(x.new.b1, 
+              mean=samples[i-1,][vec.idx],
               sigma=diag(scale[vec.idx]),
-              log=TRUE)
+              log=TRUE) + 
+      dwishart(matrix(x.new.b2, nrow=dim.cov), 
+               nu=scale[-vec.idx],
+               S=matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale[-vec.idx],
+               log=TRUE)
     # move from proposed state to current state
-    trans.in.b1 <- 1
-      ll(x.new)  +
-      dmvnorm(x.old.b1,mean=x.new.b1,
+    ll.val[i] <- ll(c(u.x,x.new))
+    trans.in <- ll.val[i] + 
+      dmvnorm(samples[i-1,][vec.idx],
+              mean=x.new.b1,
               sigma=diag(scale[vec.idx]),
-              log=TRUE)
-    log.accept.ratio.b1 <- trans.in.b1 - trans.out.b1
+              log=TRUE) + 
+      dwishart(matrix(samples[i-1,][-vec.idx], nrow=dim.cov),
+               nu=scale[-vec.idx],
+               S=matrix(x.new.b2, nrow=dim.cov)/scale[-vec.idx],
+               log=TRUE)
+    log.accept.ratio <- trans.in - trans.out
     #acceptance rate on a log scale
-    if (log(unif.b1[i]) < min(0,log.accept.ratio.b1)){
-      x.old <- x.new
+    if (log(unif[i]) < min(0,log.accept.ratio)){
+      samples[i,] <- x.new
     }else{
-      x.old <- x.old
-    }
-    #------------------------------------------------------------------
-    # update block 2 with whishart proposal. 
-#x.new.b2 <- as.vector(rwishart(nu=scale[-vec.idx], matrix(x.old.b2, nrow=dim.cov)/scale[-vec.idx]))
-    # x.new.b2 <- x.old.b2
-    # 
-    # 
-    # x.new <- x.old
-    # x.new[-vec.idx] <- x.new.b2
-    # # move from current state to proposed state
-    # trans.out.b2 <- ll(c(thres,x.old)) + 
-    #   dwishart(matrix(x.new.b2, nrow=dim.cov), 
-    #            nu=scale[-vec.idx],
-    #            S=matrix(x.old.b2, nrow=dim.cov)/scale[-vec.idx],
-    #            log=TRUE)
-    # # move from proposed state to current state
-    # trans.in.b2 <- ll(c(thres,x.new)) + 
-    #   dwishart(matrix(x.old.b2, nrow=dim.cov),
-    #            nu=scale[-vec.idx],
-    #            S=matrix(x.new.b2, nrow=dim.cov)/scale[-vec.idx],
-    #            log=TRUE)
-    # log.accept.ratio.b2 <- trans.in.b2 - trans.out.b2
-    # #acceptance rate on a log scale
-    # if (log(unif.b2[i]) < min(0,log.accept.ratio.b2)){
-    #   x.old <- x.new
-    # }else{
-    #   x.old <- x.old
-    # }
-    samples = rbind(samples,c(thres,x.old))
-    if (i%%500==0){
-      cat(c("Done",i,'itertations \n'))
+      samples[i,] <- samples[i-1,]
+      ll.val[i] <- ll.val[i-1]
     }
   }
   return(samples)
 }
+
+
+burnin <- 5000
+n.itr <-  10000
+set.seed(1234)
+init <- c(runif(7),1,0,0,1)
+scale <-c(#rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
+  0.08, #a (3)  (1.656)
+  0.007, #sigma1 (4) (0.571)
+  0.003,  #sigma2 (5) (0.451)
+  0.005,  #gamma1 (6) (0.253)
+  0.0003,   #gamma2 (7) (0.035)
+0.0025,    #mu1 (8) (3.550)
+0.0025,    #mu2 (9) (4.413)
+1000)       #cov (10-13)
+t1 <- Sys.time()
+res1.fix <- mh_mcmc_1_fix(ll=p.log, n.itr=n.itr, init=init,scale=scale)
+t2 <- Sys.time()
+print(t2-t1)
+plot(res1.fix[,4],type='l')
+length(unique(res1.fix[burnin:n.itr,3]))/(n.itr - burnin)
+
+
+
+
+# decrease the scale after several iterations
+mh_mcmc_11_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
+  samples <- matrix(NA, nrow=n.itr, ncol=length(init))
+  samples[1,] <- init
+  unif <- runif(n.itr)
+  vec.idx <- 1:(length(init)-dim.cov^2)
+  ll.val <- rep(NA, n.itr)
+  ll.val[1] <- ll(c(u.x,samples[1,]))
+  for (i in 2:n.itr){
+    if (i>5000) {
+      c <- 0.4
+      scale.ada <- c(c*scale[-length(scale)], scale[length(scale)]/c)
+      scale.ada[(length(scale)-2):(length(scale)-1)] <- scale[(length(scale)-2):(length(scale)-1)]*0.1
+    }else{
+      scale.ada <- scale
+    }
+    #-------------------------------------------------------------------
+    # update block 1 with random walk proposal. 
+    x.new.b1 <- rmvnorm(1,mean=samples[i-1,][vec.idx], sigma=diag(scale.ada[vec.idx]))
+    x.new.b2 <- as.vector(rwishart(nu=scale.ada[-vec.idx], matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale.ada[-vec.idx]))
+    x.new <- c(x.new.b1, x.new.b2)
+    # move from current state to proposed state
+    trans.out <- ll.val[i-1] + 
+      dmvnorm(x.new.b1, 
+              mean=samples[i-1,][vec.idx],
+              sigma=diag(scale.ada[vec.idx]),
+              log=TRUE) + 
+      dwishart(matrix(x.new.b2, nrow=dim.cov), 
+               nu=scale.ada[-vec.idx],
+               S=matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale.ada[-vec.idx],
+               log=TRUE)
+    # move from proposed state to current state
+    ll.val[i] <- ll(c(u.x,x.new))
+    trans.in <- ll.val[i] + 
+      dmvnorm(samples[i-1,][vec.idx],
+              mean=x.new.b1,
+              sigma=diag(scale.ada[vec.idx]),
+              log=TRUE) + 
+      dwishart(matrix(samples[i-1,][-vec.idx], nrow=dim.cov),
+               nu=scale.ada[-vec.idx],
+               S=matrix(x.new.b2, nrow=dim.cov)/scale.ada[-vec.idx],
+               log=TRUE)
+    log.accept.ratio <- trans.in - trans.out
+    #acceptance rate on a log scale
+    if (log(unif[i]) < min(0,log.accept.ratio)){
+      samples[i,] <- x.new
+    }else{
+      samples[i,] <- samples[i-1,]
+      ll.val[i] <- ll.val[i-1]
+    }
+  }
+  return(samples)
+}
+
+
+burnin <- 5000
+n.itr <-  10000
+set.seed(1234)
+init <- c(runif(7),1,0,0,1)
+scale <-c(#rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
+  0.12, #a (3)  (1.656)
+  0.010, #sigma1 (4) (0.571)
+  0.005,  #sigma2 (5) (0.451)
+  0.030,  #gamma1 (6) (0.253)
+  0.008,   #gamma2 (7) (0.035)
+  0.0025,    #mu1 (8) (3.550)
+  0.0025,    #mu2 (9) (4.413)
+  2000)       #cov (10-13)
+t1 <- Sys.time()
+res11.fix <- mh_mcmc_11_fix(ll=p.log, n.itr=n.itr, init=init,scale=scale)
+t2 <- Sys.time()
+print(t2-t1)
+plot(res11.fix[,6],type='l')
+length(unique(res11.fix[burnin:n.itr,3]))/(n.itr - burnin)
+
+#---------------MH for mixture model with fixed threshold---------------
 
 
 p.log.bulk.fix <- function(x){
@@ -474,10 +529,9 @@ p.log.bulk.fix <- function(x){
 }
 
 
-system.time(mh_mcmc_fix_opt(p.log.bulk.fix, n.itr=2000, init=init[3:7],scale=scale))
 
 t1 <- Sys.time()
-system.time( res.bulk.fix <- MCMC.parallel(p.log.bulk.fix, n=13000,
+system.time(res.bulk.fix <- MCMC.parallel(p.log.bulk.fix, n=13000,
                            init=runif(5),n.chain=3,n.cpu=6,
                            scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
                            packages=c('mvtnorm','tmvtnorm'))
@@ -587,7 +641,158 @@ acc2 <- length(unique(res[[2]]$samples[burnin:itr,2]))/(itr-burnin)
 acc3 <- length(unique(res[[3]]$samples[burnin:itr,2]))/(itr-burnin)
 print(c(acc1,acc2,acc3))
 
-res <- res.bulk.fix
+
+# fix the bulk bulk parameters but set threshold flexible
+p.log.bulk.fix1 <- function(x){
+  return(ll.tgt(theta.all=c(x , u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+}
+
+t1 <- Sys.time()
+itr <-  5000
+#number of burn-in samples
+burnin <- 2000
+res.bulk.fix1 <- MCMC.parallel(p.log.bulk.fix1, n=itr,
+                         init=c(5.5,6.2,runif(5,0,1)),n.chain=3,n.cpu=6,
+                         scale=0.5*c(0.00005,0.00005, 0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
+                         packages=c('mvtnorm','tmvtnorm'))
+t2 <- Sys.time()
+print(t2-t1)
+
+
+#fix the bulk, shape and scale parameters
+p.log.bulk.fix2 <- function(x){
+  return(ll.tgt(theta.all=c(x ,  0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+}
+
+t1 <- Sys.time()
+itr <-  50000
+#number of burn-in samples
+burnin <- 2000
+res.bulk.fix2 <- MCMC.parallel(p.log.bulk.fix2, n=itr,
+                               init=c(5.5,6.2,runif(1,0,1)),n.chain=3,n.cpu=6,
+                               scale=0.5*c(0.00001,0.00001, 0.08),adapt=FALSE,
+                               packages=c('mvtnorm','tmvtnorm'))
+t2 <- Sys.time()
+print(t2-t1)
+
+
+#fix the bulk, shape, scale and one of the threshold parameters
+p.log.bulk.fix3 <- function(x){
+  if (x>quantile(X[,2],0.999) | (x<quantile(X[,2],0.8))){
+    return(-Inf)
+  }else{
+  return(ll.tgt(theta.all=c(u.x[1], x , 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+  }
+}
+
+
+t1 <- Sys.time()
+itr <-  5000
+#number of burn-in samples
+burnin <- 2000
+res.bulk.fix3 <- MCMC.parallel(p.log.bulk.fix3, n=itr,
+                               init=c(5.5,runif(1,0,1)),n.chain=3,n.cpu=6,
+                               scale=0.5*c(0.01, 0.08),adapt=FALSE,
+                               packages=c('mvtnorm','tmvtnorm'))
+t2 <- Sys.time()
+print(t2-t1)
+
+
+
+#only threshold of margin1 is flexible
+p.log.bulk.fix4 <- function(x){
+  if ((x>quantile(X[,1],0.999)) | ((x<quantile(X[,1],0.8)) )){
+    return(-Inf)
+  }else{
+    return(ll.tgt(theta.all=c(x , u.x[2], 1.656, 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                  a.ind=3, lamfix=TRUE, 
+                  sig.ind=4:5, gamma.ind=6:7, 
+                  marg.scale.ind=1:2, marg.shape.ind=1:2))
+  }
+}
+
+
+#only threshold of margin2 is flexible
+p.log.bulk.fix4.1 <- function(x){
+  if ((x>quantile(X[,2],0.999)) | ((x<quantile(X[,2],0.8)) )){
+    return(-Inf)
+  }else{
+  return(ll.tgt(theta.all=c(u.x[1], x , 1.656, 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+  }
+}
+
+
+
+x.seq <- seq(4.4,8.3,0.01)
+post.ll <- sapply(x.seq, p.log.bulk.fix4)
+
+plot(x.seq,exp(post.ll+6600),type='l',xlim=c(5,5.5))
+
+library(zoo)
+id <- order(x.seq)
+
+AUC <- sum(diff(x.seq[id])*rollmean(exp(post.ll[id]+6500),2))
+
+plot(x.seq,exp(post.ll[id]+6600)/AUC,type='l',xlim=c(5,5.5))
+
+t1 <- Sys.time()
+itr <-  10000
+#number of burn-in samples
+burnin <- 5000
+res.bulk.fix4 <- MCMC.parallel(p.log.bulk.fix4, n=itr,
+                               init=runif(1,5.5,7),n.chain=3,n.cpu=6,
+                               scale=c(0.01),adapt=FALSE,
+                               packages=c('mvtnorm','tmvtnorm'))
+t2 <- Sys.time()
+print(t2-t1)
+res <- res.bulk.fix3
+plot(res[[1]]$samples[,2], type='l')
+
+plot(density(res[[1]]$samples[burnin:itr,2]))
+
+
+
+contri.prop <- function(x,n=2500){
+  x*log(x/n) + (n-x)*log(1-x/n)
+  }
+x.seq <- seq(1,2500,1)
+contri.val <- sapply(x.seq, contri.prop)
+plot(x.seq, contri.val, type='l')
+
+
+#only threshold of margin1 is flexible; change the scale parameter in GP distribution
+# threshold independent.
+sigma.ast <- c(0.571, 0.451) - c(0.253, 0.035)*u.x
+p.log.bulk.fix4.2 <- function(x){
+  if ((x>quantile(X[,1],0.999)) | ((x<quantile(X[,1],0.8)) )){
+    return(-Inf)
+  }else{
+    return(ll.tgt(theta.all=c(x , u.x[2], 1.656, -0.833+0.253*x, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                  a.ind=3, lamfix=TRUE, 
+                  sig.ind=4:5, gamma.ind=6:7, 
+                  marg.scale.ind=1:2, marg.shape.ind=1:2))
+  }
+}
+
+x.seq <- seq(4.4,8.3,0.01)
+post.ll.2 <- sapply(x.seq, p.log.bulk.fix4.2)
+
+plot(x.seq,exp(post.ll.2+6600),type='l',xlim=c(5,5.5))
+
+
+
 plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
      main='Traceplot of a1')
 lines(burnin:itr,res[[2]]$samples[burnin:itr,1], type='l', col='red')
