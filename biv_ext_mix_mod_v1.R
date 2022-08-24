@@ -14,10 +14,14 @@ dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ex
 
 load(file.path(dir.in,'simulation_data_pos_shape.RData'))
 
+load(file.path(dir.in,'simulation_data_pos_shape_10t.RData'))
+
 X <- X.p05
+#X <- X.p05.10t
 
 # total 5%, not marginal 5%
 u.x <- u.x.p05
+# u.x <- u.x.p05.10t
 
 cond <- (X[,1]>u.x[1]) | (X[,2]>u.x[2])
 
@@ -141,11 +145,12 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
                    a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
                    marg.scale.ind, marg.shape.ind, balthresh=F){
   thres <- theta.all[thres.ind]
+  Sigma <- matrix(theta.all[cov.ind], nrow=d)
   
   cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
   
   #proportation of the bulk
-  pi <- sum(!cond)/length(cond)
+  pi <- pmvnorm(lower=rep(0,d), upper=thres, mean=theta.all[mu.ind], sigma=Sigma, keepAttr = F)
   n.bulk <- sum(!cond)
   n.tail <- sum(cond)
   
@@ -161,8 +166,8 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
                          marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
                          lamfix=lamfix, balthresh=balthresh)
   #likelihood of the bulk
-  Sigma <- matrix(theta.all[cov.ind], nrow=2)
-  llb <- sum(dtmvnorm(y.bulk, mean=theta.all[mu.ind], sigma=Sigma, lower=c(0,0),upper=thres, log=T))
+  
+  llb <- sum(dmvnorm(y.bulk, mean=theta.all[mu.ind], sigma=Sigma, log=T))
   #priors
   lp.a <- log(prior.a(theta.all, a.ind))
   lp.sig <- log(prior.sig(theta.all, sig.ind))
@@ -173,11 +178,11 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
 
   if (lamfix==F){
     lp.lam <- log(prior.lam(theta.all, lam.ind))
-    return(llb + llt + n.bulk*log(pi) + n.tail*log(1-pi) + lp.jef + lp.thres + 
+    return(llb + llt + n.tail*log(1-pi) + lp.jef + lp.thres + 
            lp.a + lp.lam + lp.sig + lp.gamma)
   }
   else{
-    return(llb + llt + n.bulk*log(pi) + n.tail*log(1-pi) + lp.jef + lp.thres +
+    return(llb + llt + n.tail*log(1-pi) + lp.jef + lp.thres +
            lp.a + lp.sig + lp.gamma)
   }
 }
@@ -737,9 +742,44 @@ p.log.bulk.fix4.1 <- function(x){
 
 x.seq <- seq(4.4,8.3,0.01)
 post.ll <- sapply(x.seq, p.log.bulk.fix4)
+c <- max(post.ll)
+plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6))
+plot(x.seq,exp(post.ll-c),type='l')
 
-plot(x.seq,exp(post.ll+6600),type='l',xlim=c(5,5.5))
+#-----------------test if likelihood from other data can cover true threshold----
 
+
+
+d<-2
+a<-c(1.656,1.656)
+beta<-c(0,0)
+sig<-c(0.571,0.451)
+gamma<-c(0.253,0.035)
+n <- 2500
+mu <- c(3.549946,4.412749)
+u.x <- c(5.549946,6.212749)
+rho=0.65
+sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
+p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+
+for (i in 1:10){
+  set.seed(i)
+  X.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+  
+  # GP scale tail data combined with the bulk data
+  set.seed(i)
+  X.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
+  
+  X <- rbind(X.bulk, sweep(X.tail$X,2,u.x,"+"))
+  
+  x.seq <- seq(4.4,8.3,0.01)
+  post.ll <- sapply(x.seq, p.log.bulk.fix4.2)
+  c <- max(post.ll)
+  plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6), main=paste('seed',i))
+
+}
+
+#--------------------------------------------------------------------------------
 library(zoo)
 id <- order(x.seq)
 
@@ -761,36 +801,6 @@ res <- res.bulk.fix3
 plot(res[[1]]$samples[,2], type='l')
 
 plot(density(res[[1]]$samples[burnin:itr,2]))
-
-
-
-contri.prop <- function(x,n=2500){
-  x*log(x/n) + (n-x)*log(1-x/n)
-  }
-x.seq <- seq(1,2500,1)
-contri.val <- sapply(x.seq, contri.prop)
-plot(x.seq, contri.val, type='l')
-
-
-#only threshold of margin1 is flexible; change the scale parameter in GP distribution
-# threshold independent.
-sigma.ast <- c(0.571, 0.451) - c(0.253, 0.035)*u.x
-p.log.bulk.fix4.2 <- function(x){
-  if ((x>quantile(X[,1],0.999)) | ((x<quantile(X[,1],0.8)) )){
-    return(-Inf)
-  }else{
-    return(ll.tgt(theta.all=c(x , u.x[2], 1.656, -0.833+0.253*x, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
-                  a.ind=3, lamfix=TRUE, 
-                  sig.ind=4:5, gamma.ind=6:7, 
-                  marg.scale.ind=1:2, marg.shape.ind=1:2))
-  }
-}
-
-x.seq <- seq(4.4,8.3,0.01)
-post.ll.2 <- sapply(x.seq, p.log.bulk.fix4.2)
-
-plot(x.seq,exp(post.ll.2+6600),type='l',xlim=c(5,5.5))
-
 
 
 plot(burnin:itr,res[[1]]$samples[burnin:itr,1], type='l', xlab='iterations', ylab='sample',
@@ -817,3 +827,127 @@ plot(burnin:itr,res[[1]]$samples[burnin:itr,5], type='l', xlab='iterations', yla
      main='Traceplot of a1')
 lines(burnin:itr,res[[2]]$samples[burnin:itr,5], type='l', col='red')
 lines(burnin:itr,res[[3]]$samples[burnin:itr,5], type='l', col='blue')
+
+
+contri.prop <- function(x,n=2500){
+  x*log(x/n) + (n-x)*log(1-x/n)
+  }
+x.seq <- seq(1,2500,1)
+contri.val <- sapply(x.seq, contri.prop)
+plot(x.seq, contri.val, type='l')
+
+
+#only threshold of margin1 is flexible; change the scale parameter in GP distribution
+# threshold independent.
+sigma.ast <- c(0.571, 0.451) - c(0.253, 0.035)*u.x
+p.log.bulk.fix4.2 <- function(x){
+  if ((x>quantile(X[,1],0.999)) | ((x<quantile(X[,1],0.8)) )){
+    return(-Inf)
+  }else{
+    return(ll.tgt(theta.all=c(x , u.x[2], 1.656, -0.833+0.253*x, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                  a.ind=3, lamfix=TRUE, 
+                  sig.ind=4:5, gamma.ind=6:7, 
+                  marg.scale.ind=1:2, marg.shape.ind=1:2))
+  }
+}
+
+x.seq <- seq(4.4,8.3,0.01)
+post.ll.2 <- sapply(x.seq, p.log.bulk.fix4.2)
+c <- max(post.ll.2)
+plot(x.seq,exp(post.ll.2-c),type='l',xlim=c(5,6))
+plot(x.seq,exp(post.ll.2-c),type='l')
+#----------------Check the estimation of u for two truncated normal components---------
+mu1 <- c(4,4)
+mu2 <- c(7,8)
+# mu1 <- c(4.5,5.5)
+# mu2 <- c(5.5,6.5)
+
+sim.dat1 <- rtmvnorm(2375, mean=mu1, sigma=matrix(c(1,0,0,1),nrow=2), lower=c(0,0),upper=c(5,6))
+sim.dat2 <- rtmvnorm(125, mean=mu2, sigma=matrix(c(4,0,0,4),nrow=2))
+cond <- (sim.dat2[,1]<5)&(sim.dat2[,2]<6)
+sim.dat2.1 <- sim.dat2[!cond,]
+sim.dat <- rbind(sim.dat1, sim.dat2.1)
+plot(sim.dat)
+
+loglikeli <- function(x){
+  cond <- (sim.dat[,1]<x[1]) & (sim.dat[,2]<x[2])
+  dat1 <- sim.dat[cond,]
+  dat2 <- sim.dat[!cond,]
+  n1 <- dim(dat1)[1]
+  n2 <- dim(dat2)[1]
+  pi <- sum(cond)/length(cond)
+  ll <- sum(dtmvnorm(dat1, mean=mu1, sigma=matrix(c(1,0,0,1),nrow=2), upper=x, log=T))+
+        sum(dmvnorm(dat2, mean=mu2, sigma=matrix(c(4,0,0,4),nrow=2), log=T)) +
+        - n2*log(1-pmvnorm(mean=mu2,sigma=matrix(c(4,0,0,4),nrow=2), lower=c(-Inf,-Inf),upper=x)) +
+        #dunif(x[1],2,8,log=T) +
+        dnorm(x[1],5,0.5,log=T) +
+        dunif(x[2],2,8,log=T) +
+        n1*log(pi) + n2*log(1-pi)
+  return(ll)
+}
+
+loglikeli.1 <- function(x){
+  return(loglikeli(c(x,6)))
+}
+
+x.seq <- seq(2,8,0.01)
+ll <-sapply(x.seq, loglikeli.1)
+
+c <- max(ll)
+plot(x.seq, exp(ll-c),type='l',xlim=c(4.5,5.5))
+plot(x.seq, exp(ll-c),type='l')
+
+#----------------Check the estimation of u in the univariate case-------------
+u <- 5
+n <- 2500
+x.seq <- seq(-2,12,0.01)
+curve1 <- dnorm(x.seq[x.seq<u], 3, 1)
+curve2 <- evd::dgpd(x.seq[x.seq>=u], loc=u, scale=1, shape=0.1)
+p <- pnorm(u,3,1)
+plot(x.seq, c(curve1, (1-p)*curve2), type='l')
+
+for (i in 1:10){
+  set.seed(i)
+  sim.dat1 <- rtmvnorm(floor(n*p), mean=3, sigma=matrix(1,nrow=1), upper=u)
+  set.seed(i)
+  sim.dat2 <- evd::rgpd(n=n-floor(n*p), loc=u, scale=1, shape=0.1)
+  sim.dat <- c(sim.dat1, sim.dat2)
+  #plot(density(sim.dat))
+  
+  loglikeli <- function(x){
+    dat1 <- sim.dat[sim.dat<x]
+    dat2 <- sim.dat[sim.dat>=x]
+    n1 <- length(dat1)
+    n2 <- length(dat2)
+    pi <- pnorm(x, mean=3, sd=1)
+    ll <- sum(dnorm(dat1, mean=3, sd=1, log=T)) +
+      sum(evd::dgpd(dat2, loc=x, scale=1,  shape=0.1, log=T)) +
+      dunif(x,0,10,log=T) +
+      # dnorm(x,6,0.1,log=T)+
+      n2*log(1-pi)
+    return(ll)
+  }
+  
+  
+  # loglikeli.1 <- function(x){
+  #   dat1 <- sim.dat[sim.dat<x]
+  #   dat2 <- sim.dat[sim.dat>=x]
+  #   n1 <- length(dat1)
+  #   n2 <- length(dat2)
+  #   pi <- pnorm(x, mean=3, sd=1)
+  #   ll <- sum(dnorm(dat1, mean=3, sd=1, log=T)) +
+  #     sum(evd::dgpd(dat2, loc=x, scale=0.5+x*0.1,  shape=0.1, log=T)) +
+  #     dunif(x,0,10,log=T) +
+  #     # dnorm(x,6,0.1,log=T)+
+  #     n2*log(1-pi)
+  #   return(ll)
+  # }
+  x.seq <- seq(3,8,0.01)
+  system.time(ll <-sapply(x.seq, loglikeli))
+#  system.time(ll.1 <- sapply(x.seq, loglikeli.1))
+  
+  c <- max(ll)
+#  c.1 <- max(ll.1)
+  plot(x.seq, exp(ll-c),type='l',xlim=c(4.5,5.5),main=paste('seed',i))
+#  plot(x.seq, exp(ll.1-c.1),type='l',xlim=c(3.5,4.5),main=paste('seed',i))
+}
