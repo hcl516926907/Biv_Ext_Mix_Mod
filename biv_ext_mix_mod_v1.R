@@ -12,15 +12,14 @@ library(LaplacesDemon)
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
-load(file.path(dir.in,'simulation_data_pos_shape.RData'))
+load(file.path(dir.in,'simulation_data_pos_shape_fixed.RData'))
 
-load(file.path(dir.in,'simulation_data_pos_shape_10t.RData'))
 
-X <- X.p05
+X <- X.p09
 #X <- X.p05.10t
 
 # total 5%, not marginal 5%
-u.x <- u.x.p05
+u.x <- u.x.p09
 # u.x <- u.x.p05.10t
 
 cond <- (X[,1]>u.x[1]) | (X[,2]>u.x[2])
@@ -28,7 +27,7 @@ cond <- (X[,1]>u.x[1]) | (X[,2]>u.x[2])
 X.gpd <- cbind(X[cond,1] - u.x[1],
                X[cond,2] - u.x[2])
 
-y <- X.p05
+y <- X.p09
 
 #------------------------------MLE of bivariate GP model----------------------
 #with censoring
@@ -746,23 +745,44 @@ c <- max(post.ll)
 plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6))
 plot(x.seq,exp(post.ll-c),type='l')
 
-#-----------------test if likelihood from other data can cover true threshold----
-
-
-
+#--------------test if likelihood from other data can cover true threshold-----------
 d<-2
 a<-c(1.656,1.656)
 beta<-c(0,0)
 sig<-c(0.571,0.451)
 gamma<-c(0.253,0.035)
-n <- 2500
+n <- 25000
 mu <- c(3.549946,4.412749)
 u.x <- c(5.549946,6.212749)
 rho=0.65
 sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
 p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
 
-for (i in 1:10){
+likelihood <- function(x){
+  #thres <- c(x, u.x[2])
+  thres <- x
+  cond <- (X[,1]<thres[1]) & (X[,2]<thres[2])
+  dat1 <- X[cond,]
+  dat2 <- sweep(X[!cond,],2,thres,"-") 
+  n1 <- dim(dat1)[1]
+  n2 <- dim(dat2)[1]
+  #p <- pmvnorm(lower=rep(0,2), upper=thres, mean=mu, sigma=sigma, keepAttr = F)
+  p <- n1/(n1+n2)
+  theta <- c( a[1], sig, gamma)
+  ll <- -nll.powunif.GPD(theta=theta, x=dat2, u=rep(0,d), a.ind=1, lam.ind=2,
+                          sig.ind=2:3, gamma.ind=4:5,
+                          marg.scale.ind=1:2, marg.shape.ind=1:2,
+                          lamfix=T, balthresh=F) +
+  
+          sum(dmvnorm(dat1, mean=mu, sigma=sigma, log=T)) +
+
+    dunif(thres[1],2,8,log=T) +
+    #dnorm(thres[1],5,0.5,log=T) +
+    dunif(thres[2],2,8,log=T) +
+    n2*log(1-p)
+  return (ll)
+}
+for (i in 1:1){
   set.seed(i)
   X.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
   
@@ -772,20 +792,30 @@ for (i in 1:10){
   
   X <- rbind(X.bulk, sweep(X.tail$X,2,u.x,"+"))
   
-  x.seq <- seq(4.4,8.3,0.01)
-  post.ll <- sapply(x.seq, p.log.bulk.fix4.2)
+  x.seq <- seq(4,6,0.1)
+  
+  y.seq <- seq(5,7,0.1)
+  sp.grid <- expand.grid(x.seq, y.seq)
+
+ # post.ll <- sapply(x.seq, likelihood)
+  post.ll <- apply(sp.grid, 1, FUN=likelihood)
+    
   c <- max(post.ll)
-  plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6), main=paste('seed',i))
+  
+ # plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6), main=paste('seed',i))
+  contour(x.seq, y.seq, matrix(post.ll-c, nrow=length(x.seq)))
 
 }
 
+qqplot(X.tail$X[X.tail$X[,1]>0,1],rgpd(1000, mu=0, sigma=sig[1], xi=gamma[1]))
+abline(coef = c(0,1))
+
+#-------------use reject sampling to sample from my defined likelihood------------
+
+
+
+
 #--------------------------------------------------------------------------------
-library(zoo)
-id <- order(x.seq)
-
-AUC <- sum(diff(x.seq[id])*rollmean(exp(post.ll[id]+6500),2))
-
-plot(x.seq,exp(post.ll[id]+6600)/AUC,type='l',xlim=c(5,5.5))
 
 t1 <- Sys.time()
 itr <-  10000
@@ -829,12 +859,6 @@ lines(burnin:itr,res[[2]]$samples[burnin:itr,5], type='l', col='red')
 lines(burnin:itr,res[[3]]$samples[burnin:itr,5], type='l', col='blue')
 
 
-contri.prop <- function(x,n=2500){
-  x*log(x/n) + (n-x)*log(1-x/n)
-  }
-x.seq <- seq(1,2500,1)
-contri.val <- sapply(x.seq, contri.prop)
-plot(x.seq, contri.val, type='l')
 
 
 #only threshold of margin1 is flexible; change the scale parameter in GP distribution
@@ -856,50 +880,10 @@ post.ll.2 <- sapply(x.seq, p.log.bulk.fix4.2)
 c <- max(post.ll.2)
 plot(x.seq,exp(post.ll.2-c),type='l',xlim=c(5,6))
 plot(x.seq,exp(post.ll.2-c),type='l')
-#----------------Check the estimation of u for two truncated normal components---------
-mu1 <- c(4,4)
-mu2 <- c(7,8)
-# mu1 <- c(4.5,5.5)
-# mu2 <- c(5.5,6.5)
-
-sim.dat1 <- rtmvnorm(2375, mean=mu1, sigma=matrix(c(1,0,0,1),nrow=2), lower=c(0,0),upper=c(5,6))
-sim.dat2 <- rtmvnorm(125, mean=mu2, sigma=matrix(c(4,0,0,4),nrow=2))
-cond <- (sim.dat2[,1]<5)&(sim.dat2[,2]<6)
-sim.dat2.1 <- sim.dat2[!cond,]
-sim.dat <- rbind(sim.dat1, sim.dat2.1)
-plot(sim.dat)
-
-loglikeli <- function(x){
-  cond <- (sim.dat[,1]<x[1]) & (sim.dat[,2]<x[2])
-  dat1 <- sim.dat[cond,]
-  dat2 <- sim.dat[!cond,]
-  n1 <- dim(dat1)[1]
-  n2 <- dim(dat2)[1]
-  pi <- sum(cond)/length(cond)
-  ll <- sum(dtmvnorm(dat1, mean=mu1, sigma=matrix(c(1,0,0,1),nrow=2), upper=x, log=T))+
-        sum(dmvnorm(dat2, mean=mu2, sigma=matrix(c(4,0,0,4),nrow=2), log=T)) +
-        - n2*log(1-pmvnorm(mean=mu2,sigma=matrix(c(4,0,0,4),nrow=2), lower=c(-Inf,-Inf),upper=x)) +
-        #dunif(x[1],2,8,log=T) +
-        dnorm(x[1],5,0.5,log=T) +
-        dunif(x[2],2,8,log=T) +
-        n1*log(pi) + n2*log(1-pi)
-  return(ll)
-}
-
-loglikeli.1 <- function(x){
-  return(loglikeli(c(x,6)))
-}
-
-x.seq <- seq(2,8,0.01)
-ll <-sapply(x.seq, loglikeli.1)
-
-c <- max(ll)
-plot(x.seq, exp(ll-c),type='l',xlim=c(4.5,5.5))
-plot(x.seq, exp(ll-c),type='l')
 
 #----------------Check the estimation of u in the univariate case-------------
 u <- 5
-n <- 2500
+n <- 50000
 x.seq <- seq(-2,12,0.01)
 curve1 <- dnorm(x.seq[x.seq<u], 3, 1)
 curve2 <- evd::dgpd(x.seq[x.seq>=u], loc=u, scale=1, shape=0.1)
@@ -910,8 +894,8 @@ for (i in 1:10){
   set.seed(i)
   sim.dat1 <- rtmvnorm(floor(n*p), mean=3, sigma=matrix(1,nrow=1), upper=u)
   set.seed(i)
-  sim.dat2 <- evd::rgpd(n=n-floor(n*p), loc=u, scale=1, shape=0.1)
-  sim.dat <- c(sim.dat1, sim.dat2)
+  sim.dat2 <- evd::rgpd(n=n-floor(n*p), loc=0, scale=1, shape=0.1)
+  sim.dat <- c(sim.dat1, sim.dat2+u)
   #plot(density(sim.dat))
   
   loglikeli <- function(x){
@@ -921,7 +905,7 @@ for (i in 1:10){
     n2 <- length(dat2)
     pi <- pnorm(x, mean=3, sd=1)
     ll <- sum(dnorm(dat1, mean=3, sd=1, log=T)) +
-      sum(evd::dgpd(dat2, loc=x, scale=1,  shape=0.1, log=T)) +
+      sum(evd::dgpd(dat2-u, loc=0, scale=1,  shape=0.1, log=T)) +
       dunif(x,0,10,log=T) +
       # dnorm(x,6,0.1,log=T)+
       n2*log(1-pi)
