@@ -160,13 +160,29 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   
   #likelihood of the tail
   theta <- theta.all[-c(thres.ind, mu.ind, cov.ind)]
-  llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=rep(0,d), a.ind=a.ind-d, lam.ind=lam.ind-d,
+  sig <- theta.all[sig.ind]
+  gamma <- theta.all[gamma.ind]
+  
+  #left endpoints in each margin
+  eta <- -sig/gamma
+  for (i in 1:d){
+    if (gamma[i] <= 0) eta[i] <- -Inf
+  }
+
+  #assgin 0 to points small than left endpoints
+  if (any(apply(y.tail,2,min) < eta)) {
+    llt <- -Inf
+  }else{
+  llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=min(y.tail)-0.01, a.ind=a.ind-d, lam.ind=lam.ind-d,
                           sig.ind=sig.ind-d, gamma.ind=gamma.ind-d,
                           marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
                           lamfix=lamfix, balthresh=balthresh)
+  }
   #likelihood of the bulk
   
   llb <- sum(dmvnorm(y.bulk, mean=theta.all[mu.ind], sigma=Sigma, log=T))
+  if (min(y.bulk)<0) llb <- -Inf
+  
   #priors
   lp.a <- log(prior.a(theta.all, a.ind))
   lp.sig <- log(prior.sig(theta.all, sig.ind))
@@ -194,10 +210,21 @@ p.log <- function(x){
                 marg.scale.ind=1:2, marg.shape.ind=1:2))
 }
 
-p.log(c( c(5.4,6), rep(1,7), 1,0,0,1))
+p.log(c( c(5.5,6.2), rep(1,3),0,0, rep(1,2), 1,0,0,1))
 
 p.log(c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2))
 
+theta.all <- c( c(5.5,6.2), rep(1,7), 1,0,0,1)
+thres.ind <- 1:2
+mu.ind = 8:9
+cov.ind=10:13
+d=2
+a.ind=3
+lamfix=TRUE
+sig.ind=4:5
+gamma.ind=6:7
+marg.scale.ind=1:2
+marg.shape.ind=1:2
 #----------------------------MH Algorithm---------------------------
 
 #paramter order: u1,u2,a,sigma1,sigma2,gamma1,gamma2,mu1,m2,COV
@@ -316,7 +343,7 @@ mh_mcmc_1 <- function(ll, n.itr, init, scale, dim.cov=2 ){
 
 
 set.seed(1234)
-init <- c( c(6,7), runif(7),1,0,0,1)
+init <- c( c(6,7), rep(1,3),0,0, rep(1,2),1,0,0,1)
 scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
            0.064, #a (3)  (1.656)
            0.0056, #sigma1 (4) (0.571)
@@ -326,7 +353,7 @@ scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
            0.0025,    #mu1 (8)
            0.0025,    #mu2 (9)
            1000)       #cov (10-13)
-n.itr <- 10000
+n.itr <- 100000
 
 t1 <- Sys.time()
 res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
