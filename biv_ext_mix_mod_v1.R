@@ -32,8 +32,8 @@ y <- X.p09
 #------------------------------MLE of bivariate GP model----------------------
 #with censoring
 fit1<-fit.MGPD.RevExpU(x=X.gpd, u=rep(0,2), std=F,
-                         dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
-                         maxit=5000)
+                       dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
+                       maxit=5000)
 for (i in 1:5){
   fit1<-fit.MGPD.RevExpU(x=X.gpd, u=rep(0,2), std=F,
                          dep.scale.fix=T, dep.loc.fix=T, marg.shape.ind=1:2, marg.scale.ind=1:2,
@@ -154,7 +154,7 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   n.tail <- sum(cond)
   
   y.tail <- cbind(X[cond,1] - thres[1],
-                 X[cond,2] - thres[2])
+                  X[cond,2] - thres[2])
   
   y.bulk <- X[!cond,]
   
@@ -162,8 +162,8 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   theta <- theta.all[-c(thres.ind, mu.ind, cov.ind)]
   llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=rep(0,d), a.ind=a.ind-d, lam.ind=lam.ind-d,
                           sig.ind=sig.ind-d, gamma.ind=gamma.ind-d,
-                         marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
-                         lamfix=lamfix, balthresh=balthresh)
+                          marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind,
+                          lamfix=lamfix, balthresh=balthresh)
   #likelihood of the bulk
   
   llb <- sum(dmvnorm(y.bulk, mean=theta.all[mu.ind], sigma=Sigma, log=T))
@@ -174,15 +174,15 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   
   lp.thres <- log(prior.thres(theta.all, thres.ind, X))
   lp.jef <- log(prior.jef(theta.all, cov.ind, d))
-
+  
   if (lamfix==F){
     lp.lam <- log(prior.lam(theta.all, lam.ind))
     return(llb + llt + n.tail*log(1-pi) + lp.jef + lp.thres + 
-           lp.a + lp.lam + lp.sig + lp.gamma)
+             lp.a + lp.lam + lp.sig + lp.gamma)
   }
   else{
     return(llb + llt + n.tail*log(1-pi) + lp.jef + lp.thres +
-           lp.a + lp.sig + lp.gamma)
+             lp.a + lp.sig + lp.gamma)
   }
 }
 
@@ -219,13 +219,13 @@ mh_mcmc <- function(ll, n.itr, init, scale, dim.cov=2 ){
     # move from current state to proposed state
     trans.out.b1 <- ll(x.old) + 
       dmvnorm(x.new.b1, mean=x.old.b1,
-               sigma=diag(scale[vec.idx]),
-               log=TRUE)
+              sigma=diag(scale[vec.idx]),
+              log=TRUE)
     # move from proposed state to current state
     trans.in.b1 <- ll(x.new) + 
       dmvnorm(x.old.b1,mean=x.new.b1,
-               sigma=diag(scale[vec.idx]),
-               log=TRUE)
+              sigma=diag(scale[vec.idx]),
+              log=TRUE)
     log.accept.ratio.b1 <- trans.in.b1 - trans.out.b1
     #acceptance rate on a log scale
     if (log(unif.b1[i]) < min(0,log.accept.ratio.b1)){
@@ -247,9 +247,9 @@ mh_mcmc <- function(ll, n.itr, init, scale, dim.cov=2 ){
     # move from proposed state to current state
     trans.in.b2 <- ll(x.new) + 
       dwishart(matrix(x.old.b2, nrow=dim.cov),
-              nu=scale[-vec.idx],
-              S=matrix(x.new.b2, nrow=dim.cov)/scale[-vec.idx],
-              log=TRUE)
+               nu=scale[-vec.idx],
+               S=matrix(x.new.b2, nrow=dim.cov)/scale[-vec.idx],
+               log=TRUE)
     log.accept.ratio.b2 <- trans.in.b2 - trans.out.b2
     #acceptance rate on a log scale
     if (log(unif.b2[i]) < min(0,log.accept.ratio.b2)){
@@ -434,9 +434,9 @@ scale <-c(#rep(0.00025,2), #u1 u2 (1,2)   .549946 6.212749
   0.003,  #sigma2 (5) (0.451)
   0.005,  #gamma1 (6) (0.253)
   0.0003,   #gamma2 (7) (0.035)
-0.0025,    #mu1 (8) (3.550)
-0.0025,    #mu2 (9) (4.413)
-1000)       #cov (10-13)
+  0.0025,    #mu1 (8) (3.550)
+  0.0025,    #mu2 (9) (4.413)
+  1000)       #cov (10-13)
 t1 <- Sys.time()
 res1.fix <- mh_mcmc_1_fix(ll=p.log, n.itr=n.itr, init=init,scale=scale)
 t2 <- Sys.time()
@@ -536,9 +536,9 @@ p.log.bulk.fix <- function(x){
 
 t1 <- Sys.time()
 system.time(res.bulk.fix <- MCMC.parallel(p.log.bulk.fix, n=13000,
-                           init=runif(5),n.chain=3,n.cpu=6,
-                           scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
-                           packages=c('mvtnorm','tmvtnorm'))
+                                          init=runif(5),n.chain=3,n.cpu=6,
+                                          scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
+                                          packages=c('mvtnorm','tmvtnorm'))
 )
 t2 <- Sys.time()
 print(t2-t1)
@@ -633,9 +633,9 @@ burnin <- 3000
 #c(0.09,0.095,0.095)
 #c(0.08, 0.006, 0.001, 0.008, 0.002)
 res.gpd <- MCMC.parallel(p.log.gpd.2, n=itr,
-                     init=runif(5,0,1),n.chain=3,n.cpu=6,
-                     scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
-                     packages=c('mvtnorm','tmvtnorm'))
+                         init=runif(5,0,1),n.chain=3,n.cpu=6,
+                         scale=0.5*c(0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
+                         packages=c('mvtnorm','tmvtnorm'))
 t2 <- Sys.time()
 print(t2-t1)
 
@@ -659,9 +659,9 @@ itr <-  5000
 #number of burn-in samples
 burnin <- 2000
 res.bulk.fix1 <- MCMC.parallel(p.log.bulk.fix1, n=itr,
-                         init=c(5.5,6.2,runif(5,0,1)),n.chain=3,n.cpu=6,
-                         scale=0.5*c(0.00005,0.00005, 0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
-                         packages=c('mvtnorm','tmvtnorm'))
+                               init=c(5.5,6.2,runif(5,0,1)),n.chain=3,n.cpu=6,
+                               scale=0.5*c(0.00005,0.00005, 0.08, 0.015, 0.0015, 0.01, 0.002),adapt=FALSE,
+                               packages=c('mvtnorm','tmvtnorm'))
 t2 <- Sys.time()
 print(t2-t1)
 
@@ -691,10 +691,10 @@ p.log.bulk.fix3 <- function(x){
   if (x>quantile(X[,2],0.999) | (x<quantile(X[,2],0.8))){
     return(-Inf)
   }else{
-  return(ll.tgt(theta.all=c(u.x[1], x , 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
-                a.ind=3, lamfix=TRUE, 
-                sig.ind=4:5, gamma.ind=6:7, 
-                marg.scale.ind=1:2, marg.shape.ind=1:2))
+    return(ll.tgt(theta.all=c(u.x[1], x , 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                  a.ind=3, lamfix=TRUE, 
+                  sig.ind=4:5, gamma.ind=6:7, 
+                  marg.scale.ind=1:2, marg.shape.ind=1:2))
   }
 }
 
@@ -730,10 +730,10 @@ p.log.bulk.fix4.1 <- function(x){
   if ((x>quantile(X[,2],0.999)) | ((x<quantile(X[,2],0.8)) )){
     return(-Inf)
   }else{
-  return(ll.tgt(theta.all=c(u.x[1], x , 1.656, 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
-                a.ind=3, lamfix=TRUE, 
-                sig.ind=4:5, gamma.ind=6:7, 
-                marg.scale.ind=1:2, marg.shape.ind=1:2))
+    return(ll.tgt(theta.all=c(u.x[1], x , 1.656, 0.571, 0.451, 0.253, 0.035, u.x-c(2,1.8), 1.5,0.975,0.975,1.2), X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                  a.ind=3, lamfix=TRUE, 
+                  sig.ind=4:5, gamma.ind=6:7, 
+                  marg.scale.ind=1:2, marg.shape.ind=1:2))
   }
 }
 
@@ -751,7 +751,7 @@ a<-c(1.656,1.656)
 beta<-c(0,0)
 sig<-c(0.571,0.451)
 gamma<-c(0.253,0.035)
-n <- 25000
+n <- 200000
 mu <- c(3.549946,4.412749)
 u.x <- c(5.549946,6.212749)
 rho=0.65
@@ -770,19 +770,56 @@ likelihood <- function(x){
   p <- n1/(n1+n2)
   theta <- c( a[1], sig, gamma)
   ll <- -nll.powunif.GPD(theta=theta, x=dat2, u=rep(0,d), a.ind=1, lam.ind=2,
-                          sig.ind=2:3, gamma.ind=4:5,
-                          marg.scale.ind=1:2, marg.shape.ind=1:2,
-                          lamfix=T, balthresh=F) +
-  
-          sum(dmvnorm(dat1, mean=mu, sigma=sigma, log=T)) +
-
+                         sig.ind=2:3, gamma.ind=4:5,
+                         marg.scale.ind=1:2, marg.shape.ind=1:2,
+                         lamfix=T, balthresh=F) +
+    
+    sum(dmvnorm(dat1, mean=mu, sigma=sigma, log=T)) +
+    
     dunif(thres[1],2,8,log=T) +
     #dnorm(thres[1],5,0.5,log=T) +
     dunif(thres[2],2,8,log=T) +
     n2*log(1-p)
   return (ll)
 }
-for (i in 1:1){
+
+#uncensored likelihood
+
+likelihood.ucen <- function(x){
+  thres <- c(x, u.x[2])  # marignal check
+  # thres <- x    # bivariate check
+  cond <- (X[,1]<thres[1]) & (X[,2]<thres[2])
+  dat1 <- X[cond,]
+  dat2 <- sweep(X[!cond,],2,thres,"-") 
+  n1 <- dim(dat1)[1]
+  n2 <- dim(dat2)[1]
+  # p <- pmvnorm(lower=rep(0,2), upper=thres, mean=mu, sigma=sigma, keepAttr = F)
+  p <- n1/(n1+n2)
+  theta <- c( a[1], sig, gamma)
+  eta <- -sig/gamma
+  
+  # give 0 density to points below left end points
+  if ((min(dat2[,1]) < eta[1]) | min((dat2[,2]) < eta[2])){
+    llt <- -Inf
+  }else{
+    llt <- -nll.powunif.GPD(theta=theta, x=dat2, u=eta, a.ind=1, lam.ind=2,
+                            sig.ind=2:3, gamma.ind=4:5,
+                            marg.scale.ind=1:2, marg.shape.ind=1:2,
+                            lamfix=T, balthresh=F)
+  }
+  llb <- sum(dmvnorm(dat1, mean=mu, sigma=sigma, log=T)) 
+  
+  if ((min(dat1[,1])<0)|min((dat1[,2])<0)) llb <- -Inf
+  
+  ll <- llt + llb +
+    dunif(thres[1],2,8,log=T) +
+    #dnorm(thres[1],5,0.5,log=T) +
+    dunif(thres[2],2,8,log=T) +
+    n2*log(1-p)
+  return (ll)
+}
+
+for (i in 1:4){
   set.seed(i)
   X.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
   
@@ -792,29 +829,104 @@ for (i in 1:1){
   
   X <- rbind(X.bulk, sweep(X.tail$X,2,u.x,"+"))
   
-  x.seq <- seq(4,6,0.1)
+  x.seq <- seq(5,6,0.01)
   
-  y.seq <- seq(5,7,0.1)
-  sp.grid <- expand.grid(x.seq, y.seq)
-
- # post.ll <- sapply(x.seq, likelihood)
-  post.ll <- apply(sp.grid, 1, FUN=likelihood)
-    
+  # y.seq <- seq(5,7,0.1)
+  # sp.grid <- expand.grid(x.seq, y.seq)
+  
+  post.ll <- sapply(x.seq, likelihood.ucen)
+  # post.ll <- apply(sp.grid, 1, FUN=likelihood.ucen)
+  
   c <- max(post.ll)
   
- # plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6), main=paste('seed',i))
-  contour(x.seq, y.seq, matrix(post.ll-c, nrow=length(x.seq)))
-
+  plot(x.seq,exp(post.ll-c),type='l',xlim=c(5,6), main=paste('seed ',i,', sample size ',n, sep=''))
+  abline(v=u.x[1], col='red')
+  # contour(x.seq, y.seq, matrix(post.ll-c, nrow=length(x.seq)), main=paste('seed ',i,', sample size ',n, sep=''))
+  # points(x=u.x[1], y = u.x[2], type = "p", col='red', pch=20)
 }
 
-qqplot(X.tail$X[X.tail$X[,1]>0,1],rgpd(1000, mu=0, sigma=sig[1], xi=gamma[1]))
-abline(coef = c(0,1))
 
-#-------------use reject sampling to sample from my defined likelihood------------
+#-------------use mcmc to sample from my defined likelihood------------
+
+# p(x) is the mixture probablity
+# q(x) is a normal distribution
+dext.mix <- function(x){
+  X <- matrix(x,nrow=1)
+  thres <- u.x
+  cond <- (X[,1]<=thres[1]) & (X[,2]<=thres[2])
+  dat1 <- X[cond,]
+  dat2 <- X[!cond,]-thres
+  n1 <- as.numeric(length(dat1)>0)
+  n2 <- as.numeric(length(dat2)>0)
+  #p <- pmvnorm(lower=rep(0,2), upper=thres, mean=mu, sigma=sigma, keepAttr = F)
+  p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+  theta <- c( a[1], sig, gamma)
+  k <- 5
+  dat2 <- matrix(rep(dat2,k),ncol=2,byrow=T)
+  llt <- -nll.powunif.GPD(theta=theta, x=dat2, u=rep(0,d), a.ind=1, lam.ind=2,
+                          sig.ind=2:3, gamma.ind=4:5,
+                          marg.scale.ind=1:2, marg.shape.ind=1:2,
+                          lamfix=T, balthresh=F)/k 
+  llb <- sum(dmvnorm(dat1, mean=mu, sigma=sigma, log=T)) 
+  
+  if ((x[1]<0)|(x[2]<0)) llb <- -Inf
+  
+  ll <- llt + llb + n2*log(1-p)
+  return(ll)
+}
+
+dext.mix.ucen <- function(x){
+  X <- matrix(x,nrow=1)
+  thres <- u.x
+  cond <- (X[,1]<=thres[1]) & (X[,2]<=thres[2])
+  dat1 <- X[cond,]
+  dat2 <- X[!cond,]-thres
+  n1 <- as.numeric(length(dat1)>0)
+  n2 <- as.numeric(length(dat2)>0)
+  #p <- pmvnorm(lower=rep(0,2), upper=thres, mean=mu, sigma=sigma, keepAttr = F)
+  p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+  theta <- c( a[1], sig, gamma)
+  
+  eta <- -theta[2:3]/theta[4:5]
+  if (n2>0){
+    # give 0 density to points below left end points
+    if ((dat2[1] < eta[1]) | (dat2[2] < eta[2])){
+      llt <- -Inf
+    }else{
+      k <- 5
+      dat2 <- matrix(rep(dat2,k),ncol=2,byrow=T)
+      llt <- -nll.powunif.GPD(theta=theta, x=dat2, u=eta, a.ind=1, lam.ind=2,
+                              sig.ind=2:3, gamma.ind=4:5,
+                              marg.scale.ind=1:2, marg.shape.ind=1:2,
+                              lamfix=T, balthresh=F)/k 
+    }
+  }else{
+    llb <- sum(dmvnorm(dat1, mean=mu, sigma=sigma, log=T)) 
+  }
+  if ((x[1]<0)|(x[2]<0)) llb <- -Inf
+  
+  ll <- llt + llb + n2*log(1-p)
+  return(ll)
+}
 
 
+t1 <- Sys.time()
+itr <-  50000
+#number of burn-in samples
+burnin <- 10000
+
+mcmc.sp <- MCMC(dext.mix, n=itr,
+                init=c(5.5,6.2),
+                scale=c(0.2,0.2),adapt=FALSE)
+plot(mcmc.sp$samples[burnin:itr,1],type='l')
+plot(mcmc.sp$samples[burnin:itr,], main='samples from censored likelihood')
 
 
+mcmc.sp.ucen <- MCMC(dext.mix.ucen, n=itr,
+                     init=c(5.5,6.2),
+                     scale=c(0.2,0.2),adapt=FALSE)
+plot(mcmc.sp.ucen$samples[burnin:itr,2],type='l')
+plot(mcmc.sp.ucen$samples[burnin:itr,], main='samples from uncensored likelihood')
 #--------------------------------------------------------------------------------
 
 t1 <- Sys.time()
@@ -883,14 +995,14 @@ plot(x.seq,exp(post.ll.2-c),type='l')
 
 #----------------Check the estimation of u in the univariate case-------------
 u <- 5
-n <- 50000
+n <- 25000
 x.seq <- seq(-2,12,0.01)
 curve1 <- dnorm(x.seq[x.seq<u], 3, 1)
 curve2 <- evd::dgpd(x.seq[x.seq>=u], loc=u, scale=1, shape=0.1)
 p <- pnorm(u,3,1)
 plot(x.seq, c(curve1, (1-p)*curve2), type='l')
 
-for (i in 1:10){
+for (i in 1:4){
   set.seed(i)
   sim.dat1 <- rtmvnorm(floor(n*p), mean=3, sigma=matrix(1,nrow=1), upper=u)
   set.seed(i)
@@ -928,10 +1040,11 @@ for (i in 1:10){
   # }
   x.seq <- seq(3,8,0.01)
   system.time(ll <-sapply(x.seq, loglikeli))
-#  system.time(ll.1 <- sapply(x.seq, loglikeli.1))
+  #  system.time(ll.1 <- sapply(x.seq, loglikeli.1))
   
   c <- max(ll)
-#  c.1 <- max(ll.1)
-  plot(x.seq, exp(ll-c),type='l',xlim=c(4.5,5.5),main=paste('seed',i))
-#  plot(x.seq, exp(ll.1-c.1),type='l',xlim=c(3.5,4.5),main=paste('seed',i))
+  #  c.1 <- max(ll.1)
+  plot(x.seq, exp(ll-c),type='l',xlim=c(4.5,5.5),main=paste('seed ',i,', sample size ',n, sep=''))
+  abline(v=5)
+  #  plot(x.seq, exp(ll.1-c.1),type='l',xlim=c(3.5,4.5),main=paste('seed',i))
 }
