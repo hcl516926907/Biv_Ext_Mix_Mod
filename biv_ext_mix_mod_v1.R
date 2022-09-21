@@ -344,21 +344,21 @@ mh_mcmc_1 <- function(ll, n.itr, init, scale, dim.cov=2 ){
 
 set.seed(1234)
 init <- c( c(6,7), rep(1,3),0,0, rep(1,2),1,0,0,1)
-scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
-           0.064, #a (3)  (1.656)
-           0.0056, #sigma1 (4) (0.571)
-           0.0008,  #sigma2 (5) (0.451)
-           0.0056,  #gamma1 (6) (0.253)
+scale <- c(rep(0.0008,2), #u1 u2 (1,2)   .549946 6.212749
+           0.04, #a (3)  (1.656)
+           0.002, #sigma1 (4) (0.571)
+           0.002,  #sigma2 (5) (0.451)
+           0.0004,  #gamma1 (6) (0.253)
            0.0004,   #gamma2 (7) (0.035)
-           0.0025,    #mu1 (8)
-           0.0025,    #mu2 (9)
-           1000)       #cov (10-13)
-n.itr <- 100000
+           0.0004,    #mu1 (8)
+           0.0004,    #mu2 (9)
+           1500)       #cov (10-13)
+n.itr <- 50000
 
-t1 <- Sys.time()
-res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
-t2 <- Sys.time()
-print(t2-t1)
+# t1 <- Sys.time()
+# res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
+# t2 <- Sys.time()
+# print(t2-t1)
 
 t1 <- Sys.time()
 res1 <- mh_mcmc_1(p.log, n.itr=n.itr, init=init,scale=scale)
@@ -366,13 +366,13 @@ t2 <- Sys.time()
 print(t2-t1)
 
 
-plot(res1[,1],type='l', main='Traceplot of u1')
+plot(res1[,1],type='l', main='Traceplot of u1',ylim=c(5.2,5.8))
 abline(h=u.x[1],col="red")
 
-plot(res1[,2],type='l', main='Traceplot of u2')
+plot(res1[,2],type='l', main='Traceplot of u2', ylim=c(6,6.5))
 abline(h=u.x[2],col="red")
 
-plot(res1[,3],type='l', main='Traceplot of a', ylim=c(0,2))
+plot(res1[,3],type='l', main='Traceplot of a', ylim=c(0,2.5))
 abline(h=1.656,col="red")
 
 plot(res1[,4],type='l', main='Traceplot of sigma1')
@@ -381,19 +381,19 @@ abline(h=0.571,col="red")
 plot(res1[,5],type='l', main='Traceplot of sigma2', ylim=c(0,1))
 abline(h=0.451,col="red")
 
-plot(res1[,6],type='l', main='Traceplot of gamma1', ylim=c(0,1))
+plot(res1[,6],type='l', main='Traceplot of gamma1', ylim=c(0,0.4))
 abline(h=0.253,col="red")
 
-plot(res1[,7],type='l', main='Traceplot of gamma2', ylim=c(0,1))
+plot(res1[,7],type='l', main='Traceplot of gamma2', ylim=c(0,0.4))
 abline(h=0.035,col="red")
 
-plot(res1[,8],type='l', main='Traceplot of mu1')
+plot(res1[,8],type='l', main='Traceplot of mu1', ylim=c(3.4,3.8))
 abline(h=3.550,col="red")
 
-plot(res1[,9],type='l', main='Traceplot of mu2')
+plot(res1[,9],type='l', main='Traceplot of mu2',ylim=c(4.2,4.6))
 abline(h=4.413,col="red")
 
-plot(res1[,10],type='l', main='Traceplot of a11')
+plot(res1[,10],type='l', main='Traceplot of a11', ylim=c(1,2))
 abline(h=1.5,col="red")
 
 plot(res1[,11],type='l', main='Traceplot of a12')
@@ -402,6 +402,7 @@ abline(h=0.975,col="red")
 plot(res1[,13],type='l', main='Traceplot of a22')
 abline(h=1.2,col="red")
 
+length(unique(res1[30000:50000,1]))/20000
 
 #fix the threshold
 mh_mcmc_1_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
