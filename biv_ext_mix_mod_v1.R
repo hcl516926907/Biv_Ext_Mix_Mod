@@ -342,111 +342,45 @@ mh_mcmc_1 <- function(ll, n.itr, init, scale, dim.cov=2 ){
 }
 
 
-set.seed(1234)
-init <- c( c(6,7), rep(1,3),0,0, rep(1,2),1,0,0,1)
-scale <- c(rep(0.0008,2), #u1 u2 (1,2)   .549946 6.212749
-           0.04, #a (3)  (1.656)
-           0.002, #sigma1 (4) (0.571)
-           0.002,  #sigma2 (5) (0.451)
-           0.0004,  #gamma1 (6) (0.253)
-           0.0004,   #gamma2 (7) (0.035)
-           0.0004,    #mu1 (8)
-           0.0004,    #mu2 (9)
-           1500)       #cov (10-13)
-n.itr <- 50000
-
-# t1 <- Sys.time()
-# res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
-# t2 <- Sys.time()
-# print(t2-t1)
-
-t1 <- Sys.time()
-res1 <- mh_mcmc_1(p.log, n.itr=n.itr, init=init,scale=scale)
-t2 <- Sys.time()
-print(t2-t1)
-
-
-plot(res1[,1],type='l', main='Traceplot of u1',ylim=c(5.2,5.8))
-abline(h=u.x[1],col="red")
-
-plot(res1[,2],type='l', main='Traceplot of u2', ylim=c(6,6.5))
-abline(h=u.x[2],col="red")
-
-plot(res1[,3],type='l', main='Traceplot of a', ylim=c(0,2.5))
-abline(h=1.656,col="red")
-
-plot(res1[,4],type='l', main='Traceplot of sigma1')
-abline(h=0.571,col="red")
-
-plot(res1[,5],type='l', main='Traceplot of sigma2', ylim=c(0,1))
-abline(h=0.451,col="red")
-
-plot(res1[,6],type='l', main='Traceplot of gamma1', ylim=c(0,0.4))
-abline(h=0.253,col="red")
-
-plot(res1[,7],type='l', main='Traceplot of gamma2', ylim=c(0,0.4))
-abline(h=0.035,col="red")
-
-plot(res1[,8],type='l', main='Traceplot of mu1', ylim=c(3.4,3.8))
-abline(h=3.550,col="red")
-
-plot(res1[,9],type='l', main='Traceplot of mu2',ylim=c(4.2,4.6))
-abline(h=4.413,col="red")
-
-plot(res1[,10],type='l', main='Traceplot of a11', ylim=c(1,2))
-abline(h=1.5,col="red")
-
-plot(res1[,11],type='l', main='Traceplot of a12')
-abline(h=0.975,col="red")
-
-plot(res1[,13],type='l', main='Traceplot of a22')
-abline(h=1.2,col="red")
-
-length(unique(res1[30000:50000,1]))/20000
-
-
-
-# decrease the scale after several iterations
-mh_mcmc_11_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
+# decrease the scale after burnin iterations
+mh_mcmc_1_adp <- function(ll, n.itr, n.burnin, init, scale, dim.cov=2, c=0.4){
   samples <- matrix(NA, nrow=n.itr, ncol=length(init))
   samples[1,] <- init
   unif <- runif(n.itr)
   vec.idx <- 1:(length(init)-dim.cov^2)
   ll.val <- rep(NA, n.itr)
-  ll.val[1] <- ll(c(u.x,samples[1,]))
+  ll.val[1] <- ll(samples[1,])
   for (i in 2:n.itr){
-    if (i>5000) {
-      c <- 0.4
-      scale.ada <- c(c*scale[-length(scale)], scale[length(scale)]/c)
-      scale.ada[(length(scale)-2):(length(scale)-1)] <- scale[(length(scale)-2):(length(scale)-1)]*0.1
+    if (i>n.burnin) {
+      scale.adp <- c(c*scale[-length(scale)], scale[length(scale)]/c)
     }else{
-      scale.ada <- scale
+      scale.adp <- scale
     }
     #-------------------------------------------------------------------
     # update block 1 with random walk proposal. 
-    x.new.b1 <- rmvnorm(1,mean=samples[i-1,][vec.idx], sigma=diag(scale.ada[vec.idx]))
-    x.new.b2 <- as.vector(rwishart(nu=scale.ada[-vec.idx], matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale.ada[-vec.idx]))
+    x.new.b1 <- rmvnorm(1,mean=samples[i-1,][vec.idx], sigma=diag(scale.adp[vec.idx]))
+    x.new.b2 <- as.vector(rwishart(nu=scale.adp[-vec.idx], matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale.adp[-vec.idx]))
     x.new <- c(x.new.b1, x.new.b2)
     # move from current state to proposed state
     trans.out <- ll.val[i-1] + 
       dmvnorm(x.new.b1, 
               mean=samples[i-1,][vec.idx],
-              sigma=diag(scale.ada[vec.idx]),
+              sigma=diag(scale.adp[vec.idx]),
               log=TRUE) + 
       dwishart(matrix(x.new.b2, nrow=dim.cov), 
-               nu=scale.ada[-vec.idx],
-               S=matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale.ada[-vec.idx],
+               nu=scale.adp[-vec.idx],
+               S=matrix(samples[i-1,][-vec.idx], nrow=dim.cov)/scale.adp[-vec.idx],
                log=TRUE)
     # move from proposed state to current state
-    ll.val[i] <- ll(c(u.x,x.new))
+    ll.val[i] <- ll(x.new)
     trans.in <- ll.val[i] + 
       dmvnorm(samples[i-1,][vec.idx],
               mean=x.new.b1,
-              sigma=diag(scale.ada[vec.idx]),
+              sigma=diag(scale.adp[vec.idx]),
               log=TRUE) + 
       dwishart(matrix(samples[i-1,][-vec.idx], nrow=dim.cov),
-               nu=scale.ada[-vec.idx],
-               S=matrix(x.new.b2, nrow=dim.cov)/scale.ada[-vec.idx],
+               nu=scale.adp[-vec.idx],
+               S=matrix(x.new.b2, nrow=dim.cov)/scale.adp[-vec.idx],
                log=TRUE)
     log.accept.ratio <- trans.in - trans.out
     #acceptance rate on a log scale
@@ -459,6 +393,68 @@ mh_mcmc_11_fix <- function(ll, n.itr, init, scale, dim.cov=2 ){
   }
   return(samples)
 }
+
+
+set.seed(1234)
+init <- c( c(6,7), rep(1,3),0,0, rep(1,2),1,0,0,1)
+scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
+           0.1, #a (3)  (1.656)
+           0.01, #sigma1 (4) (0.571)
+           0.01,  #sigma2 (5) (0.451)
+           0.0015,  #gamma1 (6) (0.253)
+           0.001,   #gamma2 (7) (0.035)
+           0.001,    #mu1 (8)
+           0.001,    #mu2 (9)
+           1000)       #cov (10-13)
+n.itr <- 50000
+n.burnin <- 30000
+
+t1 <- Sys.time()
+# res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
+# res1 <- mh_mcmc_1(p.log, n.itr=n.itr, init=init,scale=scale)
+res1 <- mh_mcmc_1_adp(p.log, n.itr=n.itr, n.burnin=30000, init=init,scale=scale, c=0.2)
+t2 <- Sys.time()
+print(t2-t1)
+
+acp.rate <- length(unique(res1[n.burnin:n.itr,1]))/(n.itr-n.burnin)
+
+
+plot(res1[n.burnin:n.itr,1],type='l', main='Traceplot of u1')
+abline(h=u.x[1],col="red")
+
+plot(res1[n.burnin:n.itr,2],type='l', main='Traceplot of u2')
+abline(h=u.x[2],col="red")
+
+plot(res1[n.burnin:n.itr,3],type='l', main='Traceplot of a')
+abline(h=1.656,col="red")
+
+plot(res1[n.burnin:n.itr,4],type='l', main='Traceplot of sigma1')
+abline(h=0.571,col="red")
+
+plot(res1[n.burnin:n.itr,5],type='l', main='Traceplot of sigma2')
+abline(h=0.451,col="red")
+
+plot(res1[n.burnin:n.itr,6],type='l', main='Traceplot of gamma1')
+abline(h=0.253,col="red")
+
+plot(res1[n.burnin:n.itr,7],type='l', main='Traceplot of gamma2')
+abline(h=0.035,col="red")
+
+plot(res1[n.burnin:n.itr,8],type='l', main='Traceplot of mu1')
+abline(h=3.550,col="red")
+
+plot(res1[n.burnin:n.itr,9],type='l', main='Traceplot of mu2')
+abline(h=4.413,col="red")
+
+plot(res1[n.burnin:n.itr,10],type='l', main='Traceplot of a11')
+abline(h=1.5,col="red")
+
+plot(res1[n.burnin:n.itr,11],type='l', main='Traceplot of a12')
+abline(h=0.975,col="red")
+
+plot(res1[,13],type='l', main='Traceplot of a22')
+abline(h=1.2,col="red")
+
 
 
 
