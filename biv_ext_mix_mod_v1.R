@@ -210,9 +210,23 @@ p.log <- function(x){
                 marg.scale.ind=1:2, marg.shape.ind=1:2))
 }
 
+set.seed(1234)
+c <- 5
+rsp.idx <- sample(1:nrow(X), c*nrow(X) , replace=T)
+X.rsp <- X[rsp.idx,]
+p.log.rsp <- function(x){
+  return(ll.tgt(theta.all=x, X=X.rsp, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+                a.ind=3, lamfix=TRUE, 
+                sig.ind=4:5, gamma.ind=6:7, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2))
+}
+
+
 p.log(c( c(5.5,6.2), rep(1,3),0,0, rep(1,2), 1,0,0,1))
+p.log.rsp(c( c(5.5,6.2), rep(1,3),0,0, rep(1,2), 1,0,0,1))
 
 p.log(c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2))
+p.log.rsp(c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2))
 
 theta.all <- c( c(5.5,6.2), rep(1,7), 1,0,0,1)
 thres.ind <- 1:2
@@ -225,6 +239,39 @@ sig.ind=4:5
 gamma.ind=6:7
 marg.scale.ind=1:2
 marg.shape.ind=1:2
+
+mu <- u.x-c(2,1.8)
+
+p.log.rsp.marg.u1 <- function(x){
+  return(p.log.rsp(c(x, u.x[2], 1.656, 0.571, 0.451, 0.253, 0.035, mu, 1.5, 0.975, 0.975, 1.2)))
+}
+
+
+p.log.rsp.marg.u2 <- function(x){
+  return(p.log.rsp(c(u.x[1],x, 1.656, 0.571, 0.451, 0.253, 0.035, mu, 1.5, 0.975, 0.975, 1.2)))
+}
+
+p.log.marg <-function(x){
+  return(p.log(c(u.x[1],x, 1.656, 0.571, 0.451, 0.253, 0.035, mu, 1.5, 0.975, 0.975, 1.2)))
+}
+
+x.seq <- seq(5,8,0.01)
+system.time(ll.1 <-sapply(x.seq, p.log.rsp.marg.u1))
+
+c.1 <- max(ll.1)
+
+plot(x.seq, exp(ll.1-c.1),type='l', xlim=c(5.4,5.7),main=paste('marginal likelihood of u1\n resample size ',length(rsp.idx), sep=''))
+abline(v=u.x[1])
+
+plot(x.seq, exp(ll-c),type='l', xlim=c(6,6.5),main=paste('marginal likelihood of u2\n resample size ',length(rsp.idx), sep=''))
+abline(v=u.x[2])
+
+set.seed(1234)
+test.sp <- rnorm(50)
+set.seed(1234)
+test.sp.rsp <- sample(test.sp, size=5000, replace=T)
+plot(ecdf(test.sp))
+plot(ecdf(test.sp.rsp))
 #----------------------------MH Algorithm---------------------------
 
 #paramter order: u1,u2,a,sigma1,sigma2,gamma1,gamma2,mu1,m2,COV
@@ -396,7 +443,8 @@ mh_mcmc_1_adp <- function(ll, n.itr, n.burnin, init, scale, dim.cov=2, c=0.4){
 
 
 set.seed(1234)
-init <- c( c(6,7), rep(1,3),0,0, rep(1,2),1,0,0,1)
+init <- c( c(6,6), rep(1,3),0,0, rep(1,2),1,0,0,1)
+# init <- c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2)
 scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
            0.1, #a (3)  (1.656)
            0.01, #sigma1 (4) (0.571)
@@ -406,17 +454,40 @@ scale <- c(rep(0.002,2), #u1 u2 (1,2)   .549946 6.212749
            0.001,    #mu1 (8)
            0.001,    #mu2 (9)
            1000)       #cov (10-13)
+
+scale.rsp <- c(rep(0.01,2), #u1 u2 (1,2)   .549946 6.212749
+           0.01, #a (3)  (1.656)
+           0.01, #sigma1 (4) (0.571)
+           0.01,  #sigma2 (5) (0.451)
+           0.01,  #gamma1 (6) (0.253)
+           0.01,   #gamma2 (7) (0.035)
+           0.001,    #mu1 (8)
+           0.001,    #mu2 (9)
+           10000)       #cov (10-13)
+
 n.itr <- 50000
 n.burnin <- 30000
+
+rescale <- function(scale, c=0.9){
+  return(c(c*scale[1:(length(scale)-1)], scale[length(scale)]/c))
+}
 
 t1 <- Sys.time()
 # res <- mh_mcmc(p.log, n.itr=n.itr, init=init,scale=scale)
 # res1 <- mh_mcmc_1(p.log, n.itr=n.itr, init=init,scale=scale)
-res1 <- mh_mcmc_1_adp(p.log, n.itr=n.itr, n.burnin=30000, init=init,scale=scale, c=0.2)
+# res1 <- mh_mcmc_1_adp(p.log, n.itr=n.itr, n.burnin=30000, init=init,scale=scale, c=0.2)
+res1.rsp <- mh_mcmc_1_adp(p.log.rsp, n.itr=n.itr, n.burnin=n.burnin, init=init,scale=rescale(scale), c=0.01)
 t2 <- Sys.time()
 print(t2-t1)
 
-acp.rate <- length(unique(res1[n.burnin:n.itr,1]))/(n.itr-n.burnin)
+newpoint <- init+c(rnorm(length(init)-4, mean=0, sd=0.01),0,0,0,0)
+print(newpoint)
+print(p.log.rsp(newpoint))
+
+acp.rate <- length(unique(res1.rsp[n.burnin:n.itr,1]))/(n.itr-n.burnin)
+
+plot(res1.rsp[n.burnin:n.itr,1],type='l', main='Traceplot of u1', ylim=c(5.4,5.6))
+abline(h=u.x[1],col="red")
 
 
 plot(res1[n.burnin:n.itr,1],type='l', main='Traceplot of u1')
@@ -452,7 +523,7 @@ abline(h=1.5,col="red")
 plot(res1[n.burnin:n.itr,11],type='l', main='Traceplot of a12')
 abline(h=0.975,col="red")
 
-plot(res1[,13],type='l', main='Traceplot of a22')
+plot(res1[n.burnin:n.itr,13],type='l', main='Traceplot of a22')
 abline(h=1.2,col="red")
 
 
@@ -460,12 +531,49 @@ abline(h=1.2,col="red")
 
 #----------------Check the estimation of u in the univariate case-------------
 u <- 5
-n <- 25000
+n <- 2500
 x.seq <- seq(-2,12,0.01)
 curve1 <- dnorm(x.seq[x.seq<u], 3, 1)
 curve2 <- evd::dgpd(x.seq[x.seq>=u], loc=u, scale=1, shape=0.1)
 p <- pnorm(u,3,1)
 plot(x.seq, c(curve1, (1-p)*curve2), type='l')
+
+loglikeli <- function(x){
+  dat1 <- sim.dat[sim.dat<x]
+  dat2 <- sim.dat[sim.dat>=x]
+  n1 <- length(dat1)
+  n2 <- length(dat2)
+  pi <- pnorm(x, mean=3, sd=1)
+  ll <- sum(dnorm(dat1, mean=3, sd=1, log=T)) +
+    sum(evd::dgpd(dat2-u, loc=0, scale=1,  shape=0.1, log=T)) +
+    dunif(x,0,10,log=T) +
+    # dnorm(x,6,0.1,log=T)+
+    n2*log(1-pi)
+  return(ll)
+}
+
+
+loglikeli_bag <- function(x, n.B=1 ){
+  ll.val <- rep(NA, n.B)
+  for (i in 1:n.B){
+    set.seed(i)
+    bag.dat <- sample(sim.dat, size=100*length(sim.dat), replace=T)
+    
+    dat1 <- bag.dat[bag.dat<x]
+    dat2 <- bag.dat[bag.dat>=x]
+    n1 <- length(dat1)
+    n2 <- length(dat2)
+    pi <- pnorm(x, mean=3, sd=1)
+    ll <- sum(dnorm(dat1, mean=3, sd=1, log=T)) +
+      sum(evd::dgpd(dat2-u, loc=0, scale=1,  shape=0.1, log=T)) +
+      dunif(x,0,10,log=T) +
+      # dnorm(x,6,0.1,log=T)+
+      n2*log(1-pi)
+    ll.val[i] <- ll
+  }
+  return(mean(ll.val))
+}
+
 
 for (i in 1:4){
   set.seed(i)
@@ -475,19 +583,7 @@ for (i in 1:4){
   sim.dat <- c(sim.dat1, sim.dat2+u)
   #plot(density(sim.dat))
   
-  loglikeli <- function(x){
-    dat1 <- sim.dat[sim.dat<x]
-    dat2 <- sim.dat[sim.dat>=x]
-    n1 <- length(dat1)
-    n2 <- length(dat2)
-    pi <- pnorm(x, mean=3, sd=1)
-    ll <- sum(dnorm(dat1, mean=3, sd=1, log=T)) +
-      sum(evd::dgpd(dat2-u, loc=0, scale=1,  shape=0.1, log=T)) +
-      dunif(x,0,10,log=T) +
-      # dnorm(x,6,0.1,log=T)+
-      n2*log(1-pi)
-    return(ll)
-  }
+
   
   
   # loglikeli.1 <- function(x){
@@ -505,11 +601,18 @@ for (i in 1:4){
   # }
   x.seq <- seq(3,8,0.01)
   system.time(ll <-sapply(x.seq, loglikeli))
+  
+  system.time(ll.bag <-sapply(x.seq, loglikeli_bag))
   #  system.time(ll.1 <- sapply(x.seq, loglikeli.1))
   
   c <- max(ll)
+  
+  c.bag <- max(ll.bag)
   #  c.1 <- max(ll.1)
   plot(x.seq, exp(ll-c),type='l',xlim=c(4.5,5.5),main=paste('seed ',i,', sample size ',n, sep=''))
+  abline(v=5)
+  
+  plot(x.seq, exp(ll.bag-c.bag),type='l',xlim=c(4.5,5.5),main=paste('seed ',i,', resample size ',100*n, sep=''))
   abline(v=5)
   #  plot(x.seq, exp(ll.1-c.1),type='l',xlim=c(3.5,4.5),main=paste('seed',i))
 }
