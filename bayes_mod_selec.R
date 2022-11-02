@@ -197,45 +197,93 @@ idx_2_ind <- function(idx,d){
   }
   return(ind)
 }
+
+
+
 p.y.cond.m <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu){
-  
-  thres.ind <- idx_2_ind(thres.idx,d)
-  a.ind <- idx_2_ind(a.idx,d) 
-  lam.ind <- idx_2_ind(lam.idx,d) 
-  sig.ind <- idx_2_ind(sig.idx,d)  
-  gamma.ind <- idx_2_ind(gamma.idx,d) 
+  # indicator for which parameters are equal
+  thres.equ.ind <- idx_2_ind(thres.idx,d)
+  a.equ.ind <- idx_2_ind(a.idx,d) 
+  lam.equ.ind <- idx_2_ind(lam.idx,d) 
+  sig.equ.ind <- idx_2_ind(sig.idx,d)  
+  gamma.equ.ind <- idx_2_ind(gamma.idx,d) 
 
   # mu.ind <- idx_2_ind(mu.idx,d) + (4*d):(5*d-1)
   # cov.ind <- idx_2_ind(cov.idx,d) + (5*d):(6*d-1)
+
+  log.prob.y.val <- rep(NA, n.simu)
   
-  par.a <-  runif(d,0,100)
-  par.lam <- runif(d,0,100)
-  par.sig <- runif(d,0,100)
-  par.gamma <- runif(d,0,1)
-  lb <- apply(X, 2, quantile, prob=0.7)
-  ub <- apply(X, 2, quantile, prob=0.99)
-  for (i in 1:d){
-    par.thres <- c(runif(1, lb[i], ub[i]))
+  for (i in 1:n.simu){ 
+    par.a <-  runif(d,0,5)
+    par.lam <- runif(d,0,5)
+    par.sig <- runif(d,0,5)
+    par.gamma <- runif(d,0,1)
+    lb <- apply(X, 2, quantile, prob=0.9)
+    ub <- apply(X, 2, quantile, prob=0.99)
+    par.thres <- runif(1, lb[1], ub[1])
+    for (j in 2:d){
+      par.thres <- c(par.thres, runif(1, lb[j], ub[j]))
+    }
+    
+    par.mu <- rmvnorm(1, mean=rep(3,d), sigma=1*diag(d))
+    par.cov <- rwishart(nu=2,S=diag(d))
+    
+    # the last component of lam is fixed to be 1 to resolve identification issue
+    if (which(sum(lam.ind == tail(lam.ind, n=1))==1)){
+      equal.last.idx <- which(lam.ind == tail(lam.ind, n=1))
+      par.lam[equal.last.idx] <- 1
+    }
+    
+    par.all <- c(par.thres[thres.equ.ind],par.a[a.equ.ind], par.lam[lam.equ.ind[1:(d-1)]],
+                 par.sig[sig.equ.ind], par.gamma[gamma.equ.ind], par.mu, par.cov)
+    thres.ind <- 1:d
+    a.ind <- 1:d + d
+    lam.ind <-  1:(d-1) + 2*d
+    sig.ind <- 1:d + 3*d - 1
+    gamma.ind <- 1:d + 4*d - 1
+    mu.ind <- 1:d + 5*d - 1
+    # only for dimension 2
+    cov.ind <- 1:(d^2) + 6*d - 1
+   
+   
+    log.prob.y <- ll.tgt(par.all, X, thres.ind, mu.ind, cov.ind, d,
+                     a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                     marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F)
+    log.prob.y.val[i] <- log.prob.y
   }
-  
-  par.mu <- rmvnorm(1, mean=rep(0,d), sigma=100*diag(d))
-  par.cov <- rwishart(nu=100,S=diag(d))
-  
-  # the last component of lam is fixed to be 1 to resolve identificaiton issue
-  if (which(sum(lam.ind == tail(lam.ind, n=1))==1)){
-    par.all <- c(par.thres[thres.ind],par.a[a.ind], par.lam[lam.ind[1:(d-1)]],
-                 par.sig[sig.ind], par.gamma[gamma.ind])
-    #TBD
-    a.ind <- a.ind + d
-    lam.ind <- lam.ind + d-1
-    sig.ind <- sig.ind
-  }else{
-    equal.last.idx <- which(lam.ind == tail(lam.ind, n=1))
-    par.lam[equal.last.idx] <- 1
-    par.all <- c(par.thres[thres.ind],par.a[a.ind], par.lam[lam.ind[1:(d-1)]],
-                 par.sig[sig.ind], par.gamma[gamma.ind])
-  }
-  
+
+  return(log.prob.y.val) 
 }
-  
+
+thres.idx <- 1
+a.idx <- 2
+lam.idx <- 1
+sig.idx <- 1
+gamma.idx <- 1
+d <- 2
+n.simu <- 100000
+
+t1 <- Sys.time()
+res <- p.y.cond.m(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu)
+t2<- Sys.time()
+print(t2-t1)
+
+
+t1 <- Sys.time()
+res1 <- p.y.cond.m(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu)
+t2<- Sys.time()
+print(t2-t1)
+
+
+t1 <- Sys.time()
+res2 <- p.y.cond.m(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu)
+t2<- Sys.time()
+print(t2-t1)
+
+
+c.norm <- 9930
+mean(exp(log.prob.y.val+c.norm))
+c.norm <- 7470.141
+mean(exp(res1+c.norm),na.rm=T)
+
 
