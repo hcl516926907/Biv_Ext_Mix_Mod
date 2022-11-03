@@ -9,7 +9,7 @@ library(evd)
 library(tmvtnorm)
 library(mvtnorm)
 library(LaplacesDemon)
-
+library(reticulate)
 
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
@@ -229,8 +229,8 @@ p.y.cond.m <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu){
     par.cov <- rwishart(nu=2,S=diag(d))
     
     # the last component of lam is fixed to be 1 to resolve identification issue
-    if (which(sum(lam.ind == tail(lam.ind, n=1))==1)){
-      equal.last.idx <- which(lam.ind == tail(lam.ind, n=1))
+    if (which(sum(lam.equ.ind == tail(lam.equ.ind, n=1))>=1)){
+      equal.last.idx <- which(lam.equ.ind == tail(lam.equ.ind, n=1))
       par.lam[equal.last.idx] <- 1
     }
     
@@ -286,4 +286,70 @@ mean(exp(log.prob.y.val+c.norm))
 c.norm <- 7470.141
 mean(exp(res1+c.norm),na.rm=T)
 
+#-----------------------Nested Sampling-----------------------
+np = import("numpy")
+un = import("ultranest")  # pip or conda install it if you don't have it
+
+#-----------------------Laplace Approximaiton------------------
+
+
+
+log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
+  # indicator for which parameters are equal
+  thres.equ.ind <- idx_2_ind(thres.idx,d)
+  a.equ.ind <- idx_2_ind(a.idx,d) 
+  lam.equ.ind <- idx_2_ind(lam.idx,d) 
+  sig.equ.ind <- idx_2_ind(sig.idx,d)  
+  gamma.equ.ind <- idx_2_ind(gamma.idx,d) 
+  
+  # mu.ind <- idx_2_ind(mu.idx,d) + (4*d):(5*d-1)
+  # cov.ind <- idx_2_ind(cov.idx,d) + (5*d):(6*d-1)
+  
+
+  par.a <-  runif(d,0,5)
+  par.lam <- runif(d,0,5)
+  par.sig <- runif(d,0,5)
+  par.gamma <- runif(d,0,1)
+  lb <- apply(X, 2, quantile, prob=0.9)
+  ub <- apply(X, 2, quantile, prob=0.99)
+  par.thres <- runif(1, lb[1], ub[1])
+  for (j in 2:d){
+    par.thres <- c(par.thres, runif(1, lb[j], ub[j]))
+  }
+  
+  par.mu <- rmvnorm(1, mean=rep(3,d), sigma=1*diag(d))
+  par.cov <- rwishart(nu=2,S=diag(d))
+  
+  # the last component of lam is fixed to be 1 to resolve identification issue
+  if (which(sum(lam.equ.ind == tail(lam.equ.ind, n=1))>=1)){
+    equal.last.idx <- which(lam.equ.ind == tail(lam.equ.ind, n=1))
+    par.lam[equal.last.idx] <- 1
+  }
+  
+  par.all <- c(par.thres[thres.equ.ind],par.a[a.equ.ind], par.lam[lam.equ.ind[1:(d-1)]],
+               par.sig[sig.equ.ind], par.gamma[gamma.equ.ind], par.mu, par.cov)
+  thres.ind <- 1:d
+  a.ind <- 1:d + d
+  lam.ind <-  1:(d-1) + 2*d
+  sig.ind <- 1:d + 3*d - 1
+  gamma.ind <- 1:d + 4*d - 1
+  mu.ind <- 1:d + 5*d - 1
+  # only for dimension 2
+  cov.ind <- 1:(d^2) + 6*d - 1
+  
+  optim(ll.tgt, par=par.all, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+        a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+        marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F,control=list(maxit=1000,reltol=1e-6))
+  
+  ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
+                     a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                     marg.scale.ind, marg.shape.ind, balthresh=F)
+    
+  log.prob.y <- ll.tgt(par.all, X, thres.ind, mu.ind, cov.ind, d,
+                       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                       marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F)
+
+  
+  return(log.prob.y) 
+}
 
