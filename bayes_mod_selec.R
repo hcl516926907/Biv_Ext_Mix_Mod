@@ -10,6 +10,10 @@ library(tmvtnorm)
 library(mvtnorm)
 library(LaplacesDemon)
 library(reticulate)
+library(nimble)
+library(GenSA)
+library(DEoptim)
+library(numDeriv)
 
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
@@ -29,9 +33,9 @@ u.x <- u.x.p09
 #prior for a
 prior.a <- function(theta,a.ind){
   d <- length(a.ind)
-  prior <- 1
+  prior <- 0
   for (i in 1:d){
-    prior <- prior*dunif(theta[a.ind][i],0,100)
+    prior <- prior + dunif(theta[a.ind][i],0,100,log=T)
   }
   return(prior)
 }
@@ -39,10 +43,10 @@ prior.a <- function(theta,a.ind){
 #prior for lambda
 prior.lam <- function(theta, lam.ind){
   d <- length(lam.ind)
-  prior <- 1
+  prior <- 0
   for (i in 1:d){
     #prior <- prior*dgamma(theta[lam.ind][i], shape=1, rate=1)
-    prior <- prior*dunif(theta[lam.ind][i],0,100)
+    prior <- prior + dunif(theta[lam.ind][i],0,100, log=T)
   }
   return(prior)
 }
@@ -50,9 +54,9 @@ prior.lam <- function(theta, lam.ind){
 #prior for sigma
 prior.sig <- function(theta, sig.ind){
   d <- length(sig.ind)
-  prior <- 1
+  prior <- 0
   for (i in 1:d){
-    prior <- prior*dunif(theta[sig.ind][i],0,100)
+    prior <- prior+dunif(theta[sig.ind][i],0,100,log=T)
   }
   return(prior)
 }
@@ -61,9 +65,9 @@ prior.sig <- function(theta, sig.ind){
 #prior for sigma* that is not dependent on the threshold
 prior.sig1 <- function(theta, sig.ind){
   d <- length(sig.ind)
-  prior <- 1
+  prior <- 0
   for (i in 1:d){
-    prior <- prior*dunif(theta[sig.ind][i],-15,100)
+    prior <- prior+dunif(theta[sig.ind][i],-15,100,log=T)
   }
   return(prior)
 }
@@ -71,9 +75,9 @@ prior.sig1 <- function(theta, sig.ind){
 #prior for gamma
 prior.gamma <- function(theta, gamma.ind){
   d <- length(gamma.ind)
-  prior <- 1
+  prior <- 0
   for (i in 1:d){
-    prior <- prior*dunif(theta[gamma.ind][i],0,1)
+    prior <- prior+dunif(theta[gamma.ind][i],0,1,log=T)
   }
   return(prior)
 }
@@ -83,9 +87,9 @@ prior.thres <- function(theta, thres.ind, X){
   d <- length(thres.ind)
   lb <- apply(X, 2, quantile, prob=0.7)
   ub <- apply(X, 2, quantile, prob=0.99)
-  prior <- 1
+  prior <- 0
   for (i in 1:d){
-    prior <- prior*dunif(theta[thres.ind][i], lb[i], ub[i])
+    prior <- prior+dunif(theta[thres.ind][i], lb[i], ub[i],log=T)
   }
   return(prior)
 }
@@ -96,23 +100,68 @@ prior.jef <- function(theta,cov.ind, d){
 }
 
 # proper prior for the bulk
-prior.bulk <- function(theta, mu.ind, cov.ind,d){
+# prior.bulk <- function(theta, mu.ind, cov.ind,d){
+#   mu <- theta[mu.ind]
+#   mat <- matrix(theta[cov.ind], nrow=d)
+#   p1 <- dmvnorm(mu, mean=rep(0,d), sigma=100*diag(d))
+#   p2 <- dwishart(mat, nu=100,S=diag(d))
+#   return(p1*p2)
+# }
+
+# decompose covariance matrix as the product of standard deviations and correclations
+# Use LKJ distribution as the prior for correlation matrix
+# reparamatrize correlation by cholesky decomposition.
+cov.cho.ind <- c(12,14,15)
+
+prior.bulk <- function(theta, mu.ind, cov.cho.ind, d){
   mu <- theta[mu.ind]
-  mat <- matrix(theta[cov.ind], nrow=d)
-  p1 <- dmvnorm(mu, mean=rep(0,d), sigma=100*diag(d))
-  p2 <- dwishart(mat, nu=100,S=diag(d))
-  return(p1*p2)
+  p_mu <- dmvnorm(mu, mean=rep(0,d), sigma=100*diag(d),log=T)
+  L <- matrix(0, nrow=d, ncol=d)
+  L[upper.tri(L, diag = TRUE)] <- theta[cov.cho.ind]
+  
+  # ensure positive value for the diagonal items
+  diag(L) <- exp(diag(L))
+
+  D <- sqrt(diag(t(L) %*% L))
+  p_sig <- 0
+  for (i in 1:d){
+    p_sig_d <- dcauchy(D[i],0,2.5,log=T)
+    p_sig <- p_sig + p_sig_d
+  }
+  cor.cho <- L %*% diag(1/D, nrow=d) 
+  p_corr <- dlkj_corr_cholesky(cor.cho, eta=2, p=d, log = T)
+  
+  return(p_mu+p_sig+p_corr)
 }
 
+check.thres <- function(thres, X){
+  lb <- apply(X, 2, quantile, prob=0.7)
+  ub <- apply(X, 2, quantile, prob=0.99)
+  if (any(thres<lb) | any(thres>ub)){
+    return('Invalid Thresholds')
+  }else{
+    return('Pass')
+  }
+}
 #full likelihood
 ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
                    a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
                    marg.scale.ind, marg.shape.ind, balthresh=F){
   thres <- theta.all[thres.ind]
-  Sigma <- matrix(theta.all[cov.ind], nrow=d)
+  
+  #reparamatrize the matrix by Cholesky decomposition
+  L <- matrix(0, nrow=d, ncol=d)
+  L[upper.tri(L, diag = TRUE)] <- theta.all[cov.ind]
+  diag(L) <- exp(diag(L))
+  Sigma <- t(L) %*% L
+  
+  #exclude cases where any of the diagnal elements is 0. 
+  if (any(diag(Sigma)==0)) {return(-Inf)}
+  
+
+  if (check.thres(thres,X)=='Invalid Thresholds') {return(-Inf)}
   
   cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
-  
   #proportation of the bulk
   pi <- pmvnorm(lower=rep(0,d), upper=thres, mean=theta.all[mu.ind], sigma=Sigma, keepAttr = F)
   n.bulk <- sum(!cond)
@@ -149,16 +198,15 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   if (min(y.bulk)<0) llb <- -Inf
   
   #priors
-  lp.a <- log(prior.a(theta.all, a.ind))
-  lp.sig <- log(prior.sig(theta.all, sig.ind))
-  lp.gamma <- log(prior.gamma(theta.all, gamma.ind))
+  lp.a <- prior.a(theta.all, a.ind)
+  lp.sig <- prior.sig(theta.all, sig.ind)
+  lp.gamma <- prior.gamma(theta.all, gamma.ind)
   
-  lp.thres <- log(prior.thres(theta.all, thres.ind, X))
+  lp.thres <- prior.thres(theta.all, thres.ind, X)
   # lp.jef <- log(prior.jef(theta.all, cov.ind, d))
-  lp.bulk <- log(prior.bulk(theta.all, mu.ind, cov.ind,d))
-  
+  lp.bulk <- prior.bulk(theta.all, mu.ind, cov.ind,d)
   if (lamfix==F){
-    lp.lam <- log(prior.lam(theta.all, lam.ind))
+    lp.lam <- prior.lam(theta.all, lam.ind)
     return(llb + llt + n.tail*log(1-pi) + lp.bulk + lp.thres + 
              lp.a + lp.lam + lp.sig + lp.gamma)
   }
@@ -170,13 +218,14 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
 
 
 p.log <- function(x){
-  return(ll.tgt(theta.all=x, X=X, mu.ind = 8:9, cov.ind=10:13, d=2, thres.ind = 1:2, 
+  print(x)
+  return(ll.tgt(theta.all=x, X=X, mu.ind = 8:9, cov.ind=10:12, d=2, thres.ind = 1:2, 
                 a.ind=3, lamfix=TRUE, 
                 sig.ind=4:5, gamma.ind=6:7, 
                 marg.scale.ind=1:2, marg.shape.ind=1:2))
 }
 
-p.log(c( c(5.5,6.2), rep(1,3),0,0, rep(1,2), 1,0,0,1))
+p.log(c( c(5.5,6.2), rep(1,3),0,0, rep(1,2), 1,0,1))
 
 dec_2_bin <- function(x, d){
   if(x<2^d){
@@ -292,8 +341,10 @@ un = import("ultranest")  # pip or conda install it if you don't have it
 
 #-----------------------Laplace Approximaiton------------------
 
-
-
+a.idx <- 3
+lam.idx <- 3
+sig.idx <- 1
+gamma.idx <- 1
 log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
   # indicator for which parameters are equal
   thres.equ.ind <- idx_2_ind(thres.idx,d)
@@ -308,7 +359,7 @@ log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
 
   par.a <-  runif(d,0,5)
   par.lam <- runif(d,0,5)
-  par.sig <- runif(d,0,5)
+  par.sig <- c(3,3)
   par.gamma <- runif(d,0,1)
   lb <- apply(X, 2, quantile, prob=0.9)
   ub <- apply(X, 2, quantile, prob=0.99)
@@ -318,7 +369,7 @@ log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
   }
   
   par.mu <- rmvnorm(1, mean=rep(3,d), sigma=1*diag(d))
-  par.cov <- rwishart(nu=2,S=diag(d))
+  par.cov <- rep(1,d*(d+1)/2)
   
   # the last component of lam is fixed to be 1 to resolve identification issue
   if (which(sum(lam.equ.ind == tail(lam.equ.ind, n=1))>=1)){
@@ -328,18 +379,72 @@ log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
   
   par.all <- c(par.thres[thres.equ.ind],par.a[a.equ.ind], par.lam[lam.equ.ind[1:(d-1)]],
                par.sig[sig.equ.ind], par.gamma[gamma.equ.ind], par.mu, par.cov)
-  thres.ind <- 1:d
-  a.ind <- 1:d + d
-  lam.ind <-  1:(d-1) + 2*d
-  sig.ind <- 1:d + 3*d - 1
-  gamma.ind <- 1:d + 4*d - 1
+  thres.ind <- thres.equ.ind
+  a.ind <- a.equ.ind + d
+  lam.ind <-  lam.equ.ind[1:(d-1)] + 2*d
+  sig.ind <- sig.equ.ind + 3*d - 1
+  gamma.ind <- gamma.equ.ind + 4*d - 1
   mu.ind <- 1:d + 5*d - 1
   # only for dimension 2
-  cov.ind <- 1:(d^2) + 6*d - 1
+  cov.ind <- 1:(d*(d+1)/2) + 6*d - 1
   
-  optim(ll.tgt, par=par.all, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+  lam.is.1 <- which(par.lam[lam.equ.ind[1:(d-1)]]==1)
+  
+  #fix the lam parameter, change the sign of ll.tgt
+  ll.tgt.1 <- function(theta.all, X.dat, thres.ind, mu.ind, cov.ind, d=2,
+                             a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                             marg.scale.ind, marg.shape.ind, balthresh=F, lam.is.1){
+    if (length(lam.is.1)>0){
+      theta.all[lam.ind][lam.is.1] <- 1
+    }
+    return(-ll.tgt(theta.all, X.dat, thres.ind, mu.ind, cov.ind, d,
+                    a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                    marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F))
+  }
+
+  
+  lower <-  c(lb,rep(0,2),0,rep(0,6), -1,rep(-5,2))
+  upper<- c(ub,rep(100,2),1,rep(100,2),rep(1,2), rep(50,5))
+  res1 <- GenSA(par=par.all, fn=ll.tgt.1, lower=lower, upper=upper,control=list(),
+        X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
         a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-        marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F,control=list(maxit=1000,reltol=1e-6))
+        marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
+  
+  # res <- optim(ll.tgt.1, par=par.all, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+  #       a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+  #       marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1,
+  #       control=list(reltol=1e-6, maxit=20000))
+  
+  t1 <- Sys.time()
+  res <- DEoptim(fn=ll.tgt.1, lower=lower, upper=upper, 
+                 control = DEoptim.control(itermax = 1000,parallelType='auto',trace=20,
+                                           NP=200,CR=0.8),
+        X.dat=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+        a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+        marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
+  t2 <- Sys.time()
+  print(t2-t1)
+  
+  res$optim$bestmem
+  
+  hess.mat <- hessian(ll.tgt.1,  c(5.55,6.213, 1.656,1.656,1, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598), method="Richardson", method.args=list(), 
+          X.dat=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+          a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+          marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
+  
+  
+  for (i in 1:5){
+    print(i)
+    res <- optim(ll.tgt.1, par=res$par, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+                 a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+                 marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F,lam.is.1=lam.is.1,
+                 control=list(maxit=20000,reltol=1e-6))
+  }
+  res <- optim(ll.tgt.1, par=res$par, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+               a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+               marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F,lam.is.1=lam.is.1,
+               control=list(maxit=20000,reltol=1e-6),method='SANN')
+  
   
   ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
                      a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
@@ -353,3 +458,27 @@ log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
   return(log.prob.y) 
 }
 
+#true parameters
+# c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2)
+ll.tgt(c(5.55,6.213, 1.656,1.656,1, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598),
+       X, thres.ind, mu.ind, cov.ind, d=2,
+       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+       marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F)
+ll.tgt.1(c(5.55,6.213, 1.656,100,10, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598),
+       X, thres.ind, mu.ind, cov.ind, d=2,
+       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+       marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F,lam.is.1=lam.is.1)
+
+ll.tgt.1(res$optim$bestmem,
+         X, thres.ind, mu.ind, cov.ind, d=2,
+         a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+         marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F,lam.is.1=lam.is.1)
+
+ll.tgt(res$par,
+       X, thres.ind, mu.ind, cov.ind, d=2,
+       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+       marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F)
+
+test.func <- function(x,a,b){return(sum(x^2))}
+test.func(c(1,2,3))
+DEoptim(test.func, lower=rep(-Inf,3),upper=rep(10,3),a=1,b=2)
