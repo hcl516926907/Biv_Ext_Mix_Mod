@@ -185,7 +185,7 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
   
   #assgin 0 to points small than left endpoints
   if (any(apply(y.tail,2,min) < eta)) {
-    llt <- -Inf
+    llt <- -10^100
   }else{
     llt <- -nll.powunif.GPD(theta=theta, x=y.tail, u=min(y.tail)-0.01, a.ind=a.ind-d, lam.ind=lam.ind-d,
                             sig.ind=sig.ind-d, gamma.ind=gamma.ind-d,
@@ -335,10 +335,6 @@ mean(exp(log.prob.y.val+c.norm))
 c.norm <- 7470.141
 mean(exp(res1+c.norm),na.rm=T)
 
-#-----------------------Nested Sampling-----------------------
-np = import("numpy")
-un = import("ultranest")  # pip or conda install it if you don't have it
-
 #-----------------------Laplace Approximaiton------------------
 
 a.idx <- 3
@@ -482,3 +478,119 @@ ll.tgt(res$par,
 test.func <- function(x,a,b){return(sum(x^2))}
 test.func(c(1,2,3))
 DEoptim(test.func, lower=rep(-Inf,3),upper=rep(10,3),a=1,b=2)
+
+
+
+#-----------------------Nested Sampling-----------------------
+np = import("numpy")
+un = import("ultranest")  # pip or conda install it if you don't have it
+p.log <- function(x){
+  if (length(lam.is.1)>0){
+    x[lam.ind][lam.is.1] <- 1
+  }
+  L <- ll.tgt(theta.all=x, X=X, mu.ind = mu.ind, cov.ind=cov.ind, d=d, thres.ind = thres.ind, 
+                a.ind=a.ind,lam.ind=lam.ind, lamfix=F, 
+                sig.ind=sig.ind, gamma.ind=gamma.ind, 
+                marg.scale.ind=1:2, marg.shape.ind=1:2)
+  return(np$asarray(L))
+}
+
+mle <- c(5.55,6.213, 1.656,1.656,1, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598)
+ll.tgt(mle,X=X, mu.ind = mu.ind, cov.ind=cov.ind, d=d, thres.ind = thres.ind, 
+a.ind=a.ind,lam.ind=lam.ind, lamfix=F, 
+sig.ind=sig.ind, gamma.ind=gamma.ind, 
+marg.scale.ind=1:2, marg.shape.ind=1:2)
+dim(mle) <- c(1,length(lower))
+apply(mle,MARGIN=1,FUN=ll.tgt,X=X, mu.ind = mu.ind, cov.ind=cov.ind, d=d, thres.ind = thres.ind, 
+           a.ind=a.ind,lam.ind=lam.ind, lamfix=F, 
+           sig.ind=sig.ind, gamma.ind=gamma.ind, 
+           marg.scale.ind=1:2, marg.shape.ind=1:2)
+
+
+mylikelihood <- function(params){
+  L <- apply(params,MARGIN=1, FUN=p.log)
+  return(np$asarray(L))
+  }
+  
+t1=Sys.time()
+mytransform <- function(params) {
+  n.params <- ncol(params)
+  lower <- c(lb,rep(0,2),0,rep(0,6), -1,rep(-5,2))
+  upper <- c(ub,rep(100,2),1,rep(100,2),rep(1,2), rep(50,5))
+  
+  inv.trans <- function(x, lower,upper){
+    return(lower + (upper-lower)*x)
+  }
+  # inv.trans <- function(x, lower,upper){
+  #   return(lower + (upper-lower)*invlogit(x))
+  # }
+  
+  new.params <- apply(params,MARGIN=1,FUN=inv.trans, lower=lower, upper=upper)
+  return(t(new.params))
+}
+
+
+uns <- import('ultranest.stepsampler')
+paramnames <- c('u1','u2','a1','a2','b1','sigma1','sigma2','gamma1','gamma2','mu1','mu2',
+              'cov1','cov2','cov3')
+sampler = un$ReactiveNestedSampler(paramnames, mylikelihood, transform=mytransform,vectorized = T)
+nsteps = 2 * length(paramnames)
+sampler$stepsampler <- uns$SliceSampler(
+  nsteps=nsteps,
+  generate_direction=uns$generate_mixture_random_direction
+  # adaptive_nsteps=False,
+  # max_nsteps=400
+)
+results = sampler$run()
+
+t2 <- Sys.time()
+
+print(t2-t1)
+
+test <- matrix(runif(400*14), ncol=14)
+
+test.res <- mylikelihood(mytransform(test))
+which(test.res==-Inf)
+bugcase <- mytransform(test[which(test.res==-Inf),])
+bugcase[1,]
+
+
+mytransform <- function(params) {
+  params * 2 - 1
+}
+
+
+paramnames = c("a", "b", "c")
+mylikelihood <- function(params) {
+  print(params)
+  centers = 0.1 * 1:length(paramnames)
+  dim(centers) <- c(1, 3)
+  L = -0.5 * apply((apply(params, 1, '-', centers) / 0.01)**2, MARGIN=2, sum)
+  np$asarray(L)
+}
+
+sampler = un$ReactiveNestedSampler(paramnames, mylikelihood, transform=mytransform)
+
+results = sampler$run()
+
+
+
+
+
+
+
+paramnames = c("a", "b", "c")
+
+mytransform <- function(params) {
+  params * 2 - 1
+}
+
+mylikelihood <- function(params) {
+  centers = 0.1 * 1:length(paramnames)
+  dim(centers) <- c(1, 3)
+  L = -0.5 * apply((apply(params, 1, '-', centers) / 0.01)**2, MARGIN=2, sum)
+  np$asarray(L)
+}
+
+sampler = un$ReactiveNestedSampler(paramnames, mylikelihood, transform=mytransform, vectorized=TRUE)
+results = sampler$run()
