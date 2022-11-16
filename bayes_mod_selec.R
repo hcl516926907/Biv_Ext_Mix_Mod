@@ -10,10 +10,9 @@ library(tmvtnorm)
 library(mvtnorm)
 library(LaplacesDemon)
 library(reticulate)
-library(nimble)
-library(GenSA)
 library(DEoptim)
 library(numDeriv)
+library(nimble)
 
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
@@ -94,19 +93,6 @@ prior.thres <- function(theta, thres.ind, X){
   return(prior)
 }
 
-prior.jef <- function(theta,cov.ind, d){
-  mat <- matrix(theta[cov.ind], nrow=d)
-  return(det(mat)^(-d/2-1))
-}
-
-# proper prior for the bulk
-# prior.bulk <- function(theta, mu.ind, cov.ind,d){
-#   mu <- theta[mu.ind]
-#   mat <- matrix(theta[cov.ind], nrow=d)
-#   p1 <- dmvnorm(mu, mean=rep(0,d), sigma=100*diag(d))
-#   p2 <- dwishart(mat, nu=100,S=diag(d))
-#   return(p1*p2)
-# }
 
 # decompose covariance matrix as the product of standard deviations and correclations
 # Use LKJ distribution as the prior for correlation matrix
@@ -218,7 +204,6 @@ ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
 
 
 p.log <- function(x){
-  print(x)
   return(ll.tgt(theta.all=x, X=X, mu.ind = 8:9, cov.ind=10:12, d=2, thres.ind = 1:2, 
                 a.ind=3, lamfix=TRUE, 
                 sig.ind=4:5, gamma.ind=6:7, 
@@ -248,62 +233,6 @@ idx_2_ind <- function(idx,d){
 }
 
 
-
-p.y.cond.m <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu){
-  # indicator for which parameters are equal
-  thres.equ.ind <- idx_2_ind(thres.idx,d)
-  a.equ.ind <- idx_2_ind(a.idx,d) 
-  lam.equ.ind <- idx_2_ind(lam.idx,d) 
-  sig.equ.ind <- idx_2_ind(sig.idx,d)  
-  gamma.equ.ind <- idx_2_ind(gamma.idx,d) 
-
-  # mu.ind <- idx_2_ind(mu.idx,d) + (4*d):(5*d-1)
-  # cov.ind <- idx_2_ind(cov.idx,d) + (5*d):(6*d-1)
-
-  log.prob.y.val <- rep(NA, n.simu)
-  
-  for (i in 1:n.simu){ 
-    par.a <-  runif(d,0,5)
-    par.lam <- runif(d,0,5)
-    par.sig <- runif(d,0,5)
-    par.gamma <- runif(d,0,1)
-    lb <- apply(X, 2, quantile, prob=0.9)
-    ub <- apply(X, 2, quantile, prob=0.99)
-    par.thres <- runif(1, lb[1], ub[1])
-    for (j in 2:d){
-      par.thres <- c(par.thres, runif(1, lb[j], ub[j]))
-    }
-    
-    par.mu <- rmvnorm(1, mean=rep(3,d), sigma=1*diag(d))
-    par.cov <- rwishart(nu=2,S=diag(d))
-    
-    # the last component of lam is fixed to be 1 to resolve identification issue
-    if (which(sum(lam.equ.ind == tail(lam.equ.ind, n=1))>=1)){
-      equal.last.idx <- which(lam.equ.ind == tail(lam.equ.ind, n=1))
-      par.lam[equal.last.idx] <- 1
-    }
-    
-    par.all <- c(par.thres[thres.equ.ind],par.a[a.equ.ind], par.lam[lam.equ.ind[1:(d-1)]],
-                 par.sig[sig.equ.ind], par.gamma[gamma.equ.ind], par.mu, par.cov)
-    thres.ind <- 1:d
-    a.ind <- 1:d + d
-    lam.ind <-  1:(d-1) + 2*d
-    sig.ind <- 1:d + 3*d - 1
-    gamma.ind <- 1:d + 4*d - 1
-    mu.ind <- 1:d + 5*d - 1
-    # only for dimension 2
-    cov.ind <- 1:(d^2) + 6*d - 1
-   
-   
-    log.prob.y <- ll.tgt(par.all, X, thres.ind, mu.ind, cov.ind, d,
-                     a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-                     marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F)
-    log.prob.y.val[i] <- log.prob.y
-  }
-
-  return(log.prob.y.val) 
-}
-
 thres.idx <- 1
 a.idx <- 2
 lam.idx <- 1
@@ -312,172 +241,96 @@ gamma.idx <- 1
 d <- 2
 n.simu <- 100000
 
-t1 <- Sys.time()
-res <- p.y.cond.m(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu)
-t2<- Sys.time()
-print(t2-t1)
-
-
-t1 <- Sys.time()
-res1 <- p.y.cond.m(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu)
-t2<- Sys.time()
-print(t2-t1)
-
-
-t1 <- Sys.time()
-res2 <- p.y.cond.m(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d,n.simu)
-t2<- Sys.time()
-print(t2-t1)
-
-
-c.norm <- 9930
-mean(exp(log.prob.y.val+c.norm))
-c.norm <- 7470.141
-mean(exp(res1+c.norm),na.rm=T)
-
 #-----------------------Laplace Approximaiton------------------
 
 a.idx <- 3
 lam.idx <- 3
 sig.idx <- 1
 gamma.idx <- 1
-log.evidence.la <- function(thres.idx,a.idx,lam.idx,sig.idx,gamma.idx,d){
-  # indicator for which parameters are equal
-  thres.equ.ind <- idx_2_ind(thres.idx,d)
-  a.equ.ind <- idx_2_ind(a.idx,d) 
-  lam.equ.ind <- idx_2_ind(lam.idx,d) 
-  sig.equ.ind <- idx_2_ind(sig.idx,d)  
-  gamma.equ.ind <- idx_2_ind(gamma.idx,d) 
-  
-  # mu.ind <- idx_2_ind(mu.idx,d) + (4*d):(5*d-1)
-  # cov.ind <- idx_2_ind(cov.idx,d) + (5*d):(6*d-1)
-  
 
-  par.a <-  runif(d,0,5)
-  par.lam <- runif(d,0,5)
-  par.sig <- c(3,3)
-  par.gamma <- runif(d,0,1)
-  lb <- apply(X, 2, quantile, prob=0.9)
-  ub <- apply(X, 2, quantile, prob=0.99)
-  par.thres <- runif(1, lb[1], ub[1])
-  for (j in 2:d){
-    par.thres <- c(par.thres, runif(1, lb[j], ub[j]))
-  }
-  
-  par.mu <- rmvnorm(1, mean=rep(3,d), sigma=1*diag(d))
-  par.cov <- rep(1,d*(d+1)/2)
-  
-  # the last component of lam is fixed to be 1 to resolve identification issue
-  if (which(sum(lam.equ.ind == tail(lam.equ.ind, n=1))>=1)){
-    equal.last.idx <- which(lam.equ.ind == tail(lam.equ.ind, n=1))
-    par.lam[equal.last.idx] <- 1
-  }
-  
-  par.all <- c(par.thres[thres.equ.ind],par.a[a.equ.ind], par.lam[lam.equ.ind[1:(d-1)]],
-               par.sig[sig.equ.ind], par.gamma[gamma.equ.ind], par.mu, par.cov)
-  thres.ind <- thres.equ.ind
-  a.ind <- a.equ.ind + d
-  lam.ind <-  lam.equ.ind[1:(d-1)] + 2*d
-  sig.ind <- sig.equ.ind + 3*d - 1
-  gamma.ind <- gamma.equ.ind + 4*d - 1
-  mu.ind <- 1:d + 5*d - 1
-  # only for dimension 2
-  cov.ind <- 1:(d*(d+1)/2) + 6*d - 1
-  
-  lam.is.1 <- which(par.lam[lam.equ.ind[1:(d-1)]]==1)
-  
-  #fix the lam parameter, change the sign of ll.tgt
-  ll.tgt.1 <- function(theta.all, X.dat, thres.ind, mu.ind, cov.ind, d=2,
-                             a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-                             marg.scale.ind, marg.shape.ind, balthresh=F, lam.is.1){
-    if (length(lam.is.1)>0){
-      theta.all[lam.ind][lam.is.1] <- 1
-    }
-    return(-ll.tgt(theta.all, X.dat, thres.ind, mu.ind, cov.ind, d,
-                    a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-                    marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F))
-  }
+thres.equ.ind <- idx_2_ind(thres.idx,d)
+a.equ.ind <- idx_2_ind(a.idx,d) 
+lam.equ.ind <- idx_2_ind(lam.idx,d) 
+sig.equ.ind <- idx_2_ind(sig.idx,d)  
+gamma.equ.ind <- idx_2_ind(gamma.idx,d) 
 
-  
-  lower <-  c(lb,rep(0,2),0,rep(0,6), -1,rep(-5,2))
-  upper<- c(ub,rep(100,2),1,rep(100,2),rep(1,2), rep(50,5))
-  res1 <- GenSA(par=par.all, fn=ll.tgt.1, lower=lower, upper=upper,control=list(),
-        X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
-        a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-        marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
-  
-  # res <- optim(ll.tgt.1, par=par.all, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
-  #       a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-  #       marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1,
-  #       control=list(reltol=1e-6, maxit=20000))
-  
-  t1 <- Sys.time()
-  res <- DEoptim(fn=ll.tgt.1, lower=lower, upper=upper, 
-                 control = DEoptim.control(itermax = 1000,parallelType='auto',trace=20,
-                                           NP=200,CR=0.8),
-        X.dat=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
-        a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-        marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
-  t2 <- Sys.time()
-  print(t2-t1)
-  
-  res$optim$bestmem
-  
-  hess.mat <- hessian(ll.tgt.1,  c(5.55,6.213, 1.656,1.656,1, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598), method="Richardson", method.args=list(), 
-          X.dat=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
-          a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-          marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
-  
-  
-  for (i in 1:5){
-    print(i)
-    res <- optim(ll.tgt.1, par=res$par, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
-                 a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-                 marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F,lam.is.1=lam.is.1,
-                 control=list(maxit=20000,reltol=1e-6))
-  }
-  res <- optim(ll.tgt.1, par=res$par, X=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
-               a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
-               marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F,lam.is.1=lam.is.1,
-               control=list(maxit=20000,reltol=1e-6),method='SANN')
-  
-  
-  ll.tgt <- function(theta.all, X, thres.ind, mu.ind, cov.ind, d=2,
-                     a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-                     marg.scale.ind, marg.shape.ind, balthresh=F)
-    
-  log.prob.y <- ll.tgt(par.all, X, thres.ind, mu.ind, cov.ind, d,
-                       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-                       marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F)
+# mu.ind <- idx_2_ind(mu.idx,d) + (4*d):(5*d-1)
+# cov.ind <- idx_2_ind(cov.idx,d) + (5*d):(6*d-1)
 
-  
-  return(log.prob.y) 
+
+par.a <-  runif(d,0,5)
+par.lam <- runif(d,0,5)
+par.sig <- c(3,3)
+par.gamma <- runif(d,0,1)
+lb <- apply(X, 2, quantile, prob=0.9)
+ub <- apply(X, 2, quantile, prob=0.99)
+par.thres <- runif(1, lb[1], ub[1])
+for (j in 2:d){
+  par.thres <- c(par.thres, runif(1, lb[j], ub[j]))
 }
+
+par.mu <- rmvnorm(1, mean=rep(3,d), sigma=1*diag(d))
+par.cov <- rep(1,d*(d+1)/2)
+
+# the last component of lam is fixed to be 1 to resolve identification issue
+if (which(sum(lam.equ.ind == tail(lam.equ.ind, n=1))>=1)){
+  equal.last.idx <- which(lam.equ.ind == tail(lam.equ.ind, n=1))
+  par.lam[equal.last.idx] <- 1
+}
+
+par.all <- c(par.thres[thres.equ.ind],par.a[a.equ.ind], par.lam[lam.equ.ind[1:(d-1)]],
+             par.sig[sig.equ.ind], par.gamma[gamma.equ.ind], par.mu, par.cov)
+thres.ind <- thres.equ.ind
+a.ind <- a.equ.ind + d
+lam.ind <-  lam.equ.ind[1:(d-1)] + 2*d
+sig.ind <- sig.equ.ind + 3*d - 1
+gamma.ind <- gamma.equ.ind + 4*d - 1
+mu.ind <- 1:d + 5*d - 1
+# only for dimension 2
+cov.ind <- 1:(d*(d+1)/2) + 6*d - 1
+
+lam.is.1 <- which(par.lam[lam.equ.ind[1:(d-1)]]==1)
+
+#fix the lam parameter, change the sign of ll.tgt
+ll.tgt.1 <- function(theta.all, X.dat, thres.ind, mu.ind, cov.ind, d=2,
+                           a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                           marg.scale.ind, marg.shape.ind, balthresh=F, lam.is.1){
+  if (length(lam.is.1)>0){
+    theta.all[lam.ind][lam.is.1] <- 1
+  }
+  return(-ll.tgt(theta.all, X.dat, thres.ind, mu.ind, cov.ind, d,
+                  a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
+                  marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F))
+}
+
+#Use differential evolution to find the optimal point
+
+# lower <-  c(lb,rep(0,2),0,rep(0,6), -1,rep(-5,2))
+# upper<- c(ub,rep(100,2),1,rep(100,2),rep(1,2), rep(50,5))
+# 
+# t1 <- Sys.time()
+# res <- DEoptim(fn=ll.tgt.1, lower=lower, upper=upper, 
+#                control = DEoptim.control(itermax = 1000,parallelType='auto',trace=20,
+#                                          NP=200,CR=0.8),
+#       X.dat=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+#       a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+#       marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
+# t2 <- Sys.time()
+# print(t2-t1)
+
+# res$optim$bestmem
+# 
+# hess.mat <- hessian(ll.tgt.1,  c(5.205481,6.358980, 1.367193,2.809423,0.742046, 0.532623, 0.382785, 0.278435, 0.092925, 3.541122, 4.400020, 0.218236, 0.806774, -0.308059), method="Richardson", method.args=list(), 
+#         X.dat=X, thres.ind=thres.ind,mu.ind=mu.ind, cov.ind=cov.ind, d=d,
+#         a.ind=a.ind, lam.ind=lam.ind, lamfix=F, sig.ind=sig.ind, gamma.ind=gamma.ind,
+#         marg.scale.ind=1:d, marg.shape.ind=1:d, balthresh=F, lam.is.1=lam.is.1)
+
+
+
+  
 
 #true parameters
 # c(5.55,6.213, 1.656, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 1.5, 0.975, 0.975, 1.2)
-ll.tgt(c(5.55,6.213, 1.656,1.656,1, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598),
-       X, thres.ind, mu.ind, cov.ind, d=2,
-       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-       marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F)
-ll.tgt.1(c(5.55,6.213, 1.656,100,10, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598),
-       X, thres.ind, mu.ind, cov.ind, d=2,
-       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-       marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F,lam.is.1=lam.is.1)
-
-ll.tgt.1(res$optim$bestmem,
-         X, thres.ind, mu.ind, cov.ind, d=2,
-         a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-         marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F,lam.is.1=lam.is.1)
-
-ll.tgt(res$par,
-       X, thres.ind, mu.ind, cov.ind, d=2,
-       a.ind, lam.ind, lamfix=F, sig.ind, gamma.ind,
-       marg.scale.ind=1:2, marg.shape.ind=1:2, balthresh=F)
-
-test.func <- function(x,a,b){return(sum(x^2))}
-test.func(c(1,2,3))
-DEoptim(test.func, lower=rep(-Inf,3),upper=rep(10,3),a=1,b=2)
 
 
 
@@ -495,24 +348,13 @@ p.log <- function(x){
   return(np$asarray(L))
 }
 
-mle <- c(5.55,6.213, 1.656,1.656,1, 0.571, 0.451, 0.253, 0.035, 3.550, 4.413, 0.2027326, 0.7960842, -0.2843598)
-ll.tgt(mle,X=X, mu.ind = mu.ind, cov.ind=cov.ind, d=d, thres.ind = thres.ind, 
-a.ind=a.ind,lam.ind=lam.ind, lamfix=F, 
-sig.ind=sig.ind, gamma.ind=gamma.ind, 
-marg.scale.ind=1:2, marg.shape.ind=1:2)
-dim(mle) <- c(1,length(lower))
-apply(mle,MARGIN=1,FUN=ll.tgt,X=X, mu.ind = mu.ind, cov.ind=cov.ind, d=d, thres.ind = thres.ind, 
-           a.ind=a.ind,lam.ind=lam.ind, lamfix=F, 
-           sig.ind=sig.ind, gamma.ind=gamma.ind, 
-           marg.scale.ind=1:2, marg.shape.ind=1:2)
-
 
 mylikelihood <- function(params){
   L <- apply(params,MARGIN=1, FUN=p.log)
   return(np$asarray(L))
   }
   
-t1=Sys.time()
+
 mytransform <- function(params) {
   n.params <- ncol(params)
   lower <- c(lb,rep(0,2),0,rep(0,6), -1,rep(-5,2))
@@ -521,15 +363,12 @@ mytransform <- function(params) {
   inv.trans <- function(x, lower,upper){
     return(lower + (upper-lower)*x)
   }
-  # inv.trans <- function(x, lower,upper){
-  #   return(lower + (upper-lower)*invlogit(x))
-  # }
   
   new.params <- apply(params,MARGIN=1,FUN=inv.trans, lower=lower, upper=upper)
   return(t(new.params))
 }
 
-
+t1=Sys.time()
 uns <- import('ultranest.stepsampler')
 paramnames <- c('u1','u2','a1','a2','b1','sigma1','sigma2','gamma1','gamma2','mu1','mu2',
               'cov1','cov2','cov3')
@@ -547,50 +386,5 @@ t2 <- Sys.time()
 
 print(t2-t1)
 
-test <- matrix(runif(400*14), ncol=14)
-
-test.res <- mylikelihood(mytransform(test))
-which(test.res==-Inf)
-bugcase <- mytransform(test[which(test.res==-Inf),])
-bugcase[1,]
-
-
-mytransform <- function(params) {
-  params * 2 - 1
-}
-
-
-paramnames = c("a", "b", "c")
-mylikelihood <- function(params) {
-  print(params)
-  centers = 0.1 * 1:length(paramnames)
-  dim(centers) <- c(1, 3)
-  L = -0.5 * apply((apply(params, 1, '-', centers) / 0.01)**2, MARGIN=2, sum)
-  np$asarray(L)
-}
-
-sampler = un$ReactiveNestedSampler(paramnames, mylikelihood, transform=mytransform)
-
-results = sampler$run()
-
-
-
-
-
-
-
-paramnames = c("a", "b", "c")
-
-mytransform <- function(params) {
-  params * 2 - 1
-}
-
-mylikelihood <- function(params) {
-  centers = 0.1 * 1:length(paramnames)
-  dim(centers) <- c(1, 3)
-  L = -0.5 * apply((apply(params, 1, '-', centers) / 0.01)**2, MARGIN=2, sum)
-  np$asarray(L)
-}
-
-sampler = un$ReactiveNestedSampler(paramnames, mylikelihood, transform=mytransform, vectorized=TRUE)
-results = sampler$run()
+dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/bayes_mod_selec'
+save(results,  file.path(dir.out,'ultranest_res.RData'))
