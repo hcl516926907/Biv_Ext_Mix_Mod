@@ -15,8 +15,10 @@ pmnorm_chol <- nimbleRcall(function(lower = double(1), upper = double(1),
                                Rfun = 'R_pmnorm_chol',
                                returnType = double(0))
 
+pmnorm_chol(c(0,0), thres, mean=c(3,4), cholesky = diag(2))
 
-nim_nll_powunif_GPD <- nimbleRcall(function(x=double(2), theta=double(1), u=double(0), a.ind=double(1),
+#why switching theta and x will cause error
+nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=double(0), a.ind=double(1),
                                             lam.ind=double(1), sig.ind=double(1), gamma.ind=double(1), 
                                             lamfix=logical(0, default = 0), balthresh=logical(0, default = 0), 
                                             marg.scale.ind=double(1), marg.shape.ind=double(1)){}, 
@@ -42,7 +44,7 @@ nll.powunif.GPD(theta=theta, x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.i
                 gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
                 marg.shape.ind = marg.shape.ind)
 
-nim_nll_powunif_GPD(x=rbind(y.single,y.single), theta=theta, u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
+nim_nll_powunif_GPD( theta=theta,x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
                 gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
                 marg.shape.ind = marg.shape.ind)
 
@@ -69,31 +71,85 @@ dbiextmix <- nimbleFunction(
     if(tail.ind){
       if (all((x-thres)>eta)){
         y.tail <- t(matrix(c(x-thres, x-thres),nrow=d))
-        print(y.tail)
         twollt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
                                       lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
                                       lamfix=lamfix, balthresh=FALSE, 
                                       marg.scale.ind=1:2, marg.shape.ind=1:2)
-        print(twollt)
         dtail <- exp(twollt/2)
       }
     }else{
     
     dbulk <- dmnorm_chol(x, mean=mu, cholesky = chol, prec_param = FALSE)
-    print(1)
     }
     
-    totalProb <- dtail + dbulk
+    totalProb <- (1-pi)*dtail + dbulk
     if (log) return(log(totalProb))
     return(totalProb)
   })
 
 dbiextmix(y.single+thres,theta=theta, thres=thres, mu=c(3,4), 
           chol=diag(2),
-          a.ind=a.ind, lam.ind=lam.ind, lamfix=TRUE, 
+          a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE, 
           sig.ind=sig.ind, gamma.ind=gamma.ind)
 
 
+registerDistributions(list(
+  dbiextmix = list(
+    BUGSdist = "dbiextmix(theta, thres, mu, chol, a.ind, lam.ind, lamfix, sig.ind, gamma.ind)",
+    types = c('value = double(1)', 'theta = double(1)', 'thres = double(1)', 
+              'mu = double(1)', 'chol = double(2)', 'a.ind = double(0)', 
+              'lam.ind = double(0)', 'lamfix = logical(0)', 'sig.ind = double(1)',
+              'gamma.ind = double(1)')
+  )))
+
+uppertri_mult_diag <- nimbleFunction(
+  run = function(mat = double(2), vec = double(1)) {
+    returnType(double(2))
+    p <- length(vec)
+    out <- matrix(nrow = p, ncol = p, init = FALSE)
+    for(i in 1:p)
+      out[ , i] <- mat[ , i] * vec[i]
+    return(out)
+  })
+
+bivextmixcode <- nimbleCode({
+  Ustar[1:d,1:d] ~ dlkj_corr_cholesky(1.3, d)
+  U[1:d,1:d] <- uppertri_mult_diag(Ustar[1:d, 1:d], sds[1:d])
+  
+  for (i in 1:3)
+    theta[i] ~ dunif(0,50)
+  for (i in 4:5)
+    theta[i] ~ dunif(0,1)
+  
+  for (i in 1:2)
+    mu[i] ~ dnorm(0,100)
+  
+  for (i in 1:2)
+    thres[i] ~ dunif(lb[i], ub[i])
+
+  for (i in 1:N)
+    y[i,1:d] ~ dbiextmix(theta=theta[1:7], thres=thres[1:d], mu=mu[1:d], 
+                         chol=U[1:d,1:d],
+                         a.ind=a.ind, lam.ind=lam.ind, lamfix=lamfix, 
+                         sig.ind=sig.ind[1:d], gamma.ind=gamma.ind[1:d])
+})
+
+
+biextmixmodel <- nimbleModel(bivextmixcode, constants = list(N = 2500, 
+                                                             d = 2,
+                                                             a.ind = 1,
+                                                             lam.ind = 2,
+                                                             sig.ind = c(2,3),
+                                                             gamma.ind = c(4,5),
+                                                             lamfix=TRUE,
+                                                             lb = c(4.197212,4.979511),
+                                                             ub = c(6.774084,7.069288)), check = FALSE)
+
+
+
+
+biextmixmodel$setData(list(y = X))  ## Set those values as data in the model
+cbiextmixmodel <- compileNimble(biextmixmodel)
 
 
 dSS <- nimbleFunction(
