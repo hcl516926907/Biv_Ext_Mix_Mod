@@ -3,6 +3,18 @@ source("KRSW/CommonFunctions.r")
 library(nimble, warn.conflicts = F)
 library(mvtnorm)
 
+
+dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
+
+load(file.path(dir.in,'simulation_data_pos_shape_fixed.RData'))
+
+
+X <- X.p09
+#X <- X.p05.10t
+
+# total 5%, not marginal 5%
+u.x <- u.x.p09
+
 R_pmnorm_chol <- function(lower, upper, mean, cholesky){
   sigma <- t(cholesky) %*% cholesky
   return(pmvnorm(lower=lower, upper=upper, mean=mean, sigma=sigma, keepAttr = F))
@@ -15,44 +27,44 @@ pmnorm_chol <- nimbleRcall(function(lower = double(1), upper = double(1),
                                Rfun = 'R_pmnorm_chol',
                                returnType = double(0))
 
-pmnorm_chol(c(0,0), thres, mean=c(3,4), cholesky = diag(2))
+# pmnorm_chol(c(0,0), thres, mean=c(3,4), cholesky = diag(2))
 
 #why switching theta and x will cause error
-nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=double(0), a.ind=double(1),
-                                            lam.ind=double(1), sig.ind=double(1), gamma.ind=double(1), 
+nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=double(0), a.ind=double(0),
+                                            lam.ind=double(0), sig.ind=double(1), gamma.ind=double(1), 
                                             lamfix=logical(0, default = 0), balthresh=logical(0, default = 0), 
                                             marg.scale.ind=double(1), marg.shape.ind=double(1)){}, 
                                    Rfun = 'nll.powunif.GPD',
                                    returnType = double(0))
 
-thres <- c(5.55,6.213)
-theta <- c(1.656, 0.571, 0.451, 0.253, 0.035)
-a.ind <- c(1)
-lam.ind <- c(1)
-sig.ind <- c(2,3)
-gamma.ind <- c(4,5)
-marg.scale.ind <- c(1,2)
-marg.shape.ind <- c(1,2)
+# thres <- c(5.55,6.213)
+# theta <- c(1.656, 0.571, 0.451, 0.253, 0.035)
+# a.ind <- c(1)
+# lam.ind <- c(1)
+# sig.ind <- c(2,3)
+# gamma.ind <- c(4,5)
+# marg.scale.ind <- c(1,2)
+# marg.shape.ind <- c(1,2)
+# 
+# cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
+# y.tail <- cbind(X[cond,1] - thres[1],
+#                 X[cond,2] - thres[2])
+# y.single <- y.tail[1,]
+# 
+# rbind(y.single,y.single)
+# nll.powunif.GPD(theta=theta, x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
+#                 gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
+#                 marg.shape.ind = marg.shape.ind)
 
-cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
-y.tail <- cbind(X[cond,1] - thres[1],
-                X[cond,2] - thres[2])
-y.single <- y.tail[1,]
-
-rbind(y.single,y.single)
-nll.powunif.GPD(theta=theta, x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
-                gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
-                marg.shape.ind = marg.shape.ind)
-
-nim_nll_powunif_GPD( theta=theta,x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
-                gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
-                marg.shape.ind = marg.shape.ind)
+# nim_nll_powunif_GPD( theta=theta,x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
+#                 gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
+#                 marg.shape.ind = marg.shape.ind)
 
 
 dbiextmix <- nimbleFunction(
   run = function(x=double(1), theta=double(1), thres=double(1), mu=double(1), 
-                 chol=double(2), d=double(0, default=2),
-                 a.ind=double(1), lam.ind=double(1), lamfix=logical(0, default = 0), 
+                 chol=double(2), d=integer(0, default=2),
+                 a.ind=double(0), lam.ind=double(0), lamfix=logical(0, default = 0), 
                  sig.ind=double(1), gamma.ind=double(1),
                  log = logical(0, default = 0)) {
     returnType(double())
@@ -87,17 +99,17 @@ dbiextmix <- nimbleFunction(
     return(totalProb)
   })
 
-dbiextmix(y.single+thres,theta=theta, thres=thres, mu=c(3,4), 
-          chol=diag(2),
-          a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE, 
-          sig.ind=sig.ind, gamma.ind=gamma.ind)
+# dbiextmix(y.single+thres,theta=theta, thres=thres, mu=c(3,4),
+#           chol=diag(2), d=2,
+#           a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
+#           sig.ind=sig.ind, gamma.ind=gamma.ind)
 
 
 registerDistributions(list(
   dbiextmix = list(
     BUGSdist = "dbiextmix(theta, thres, mu, chol, a.ind, lam.ind, lamfix, sig.ind, gamma.ind)",
     types = c('value = double(1)', 'theta = double(1)', 'thres = double(1)', 
-              'mu = double(1)', 'chol = double(2)', 'a.ind = double(0)', 
+              'mu = double(1)', 'chol = double(2)', 'd = integer(0)', 'a.ind = double(0)', 
               'lam.ind = double(0)', 'lamfix = logical(0)', 'sig.ind = double(1)',
               'gamma.ind = double(1)')
   )))
@@ -128,13 +140,14 @@ bivextmixcode <- nimbleCode({
     thres[i] ~ dunif(lb[i], ub[i])
 
   for (i in 1:N)
-    y[i,1:d] ~ dbiextmix(theta=theta[1:7], thres=thres[1:d], mu=mu[1:d], 
+    y[i,1:d] ~ dbiextmix(theta=theta[1:5], thres=thres[1:d], mu=mu[1:d], 
                          chol=U[1:d,1:d],
                          a.ind=a.ind, lam.ind=lam.ind, lamfix=lamfix, 
                          sig.ind=sig.ind[1:d], gamma.ind=gamma.ind[1:d])
 })
 
 
+# why d is unused?
 biextmixmodel <- nimbleModel(bivextmixcode, constants = list(N = 2500, 
                                                              d = 2,
                                                              a.ind = 1,
