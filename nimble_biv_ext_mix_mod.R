@@ -17,7 +17,7 @@ u.x <- u.x.p09
 
 R_pmnorm_chol <- function(lower, upper, mean, cholesky){
   sigma <- t(cholesky) %*% cholesky
-  return(pmvnorm(lower=lower, upper=upper, mean=mean, sigma=sigma, keepAttr = F))
+  return(pmvnorm(lower=lower, upper=as.vector(upper), mean=as.vector(mean), sigma=sigma, keepAttr = F))
 }
 
 
@@ -45,7 +45,7 @@ nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=doub
 # gamma.ind <- c(4,5)
 # marg.scale.ind <- c(1,2)
 # marg.shape.ind <- c(1,2)
-# 
+#  
 # cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
 # y.tail <- cbind(X[cond,1] - thres[1],
 #                 X[cond,2] - thres[2])
@@ -63,7 +63,7 @@ nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=doub
 
 dbiextmix <- nimbleFunction(
   run = function(x=double(1), theta=double(1), thres=double(1), mu=double(1), 
-                 chol=double(2), d=integer(0, default=2),
+                 cholesky=double(2), D=integer(0, default=2),
                  a.ind=double(0), lam.ind=double(0), lamfix=logical(0, default = 0), 
                  sig.ind=double(1), gamma.ind=double(1),
                  log = logical(0, default = 0)) {
@@ -71,7 +71,7 @@ dbiextmix <- nimbleFunction(
     
     tail.ind <- any(x>thres)
     
-    pi <- pmnorm_chol(lower=rep(0,d), upper=thres, mean=mu, cholesky = chol)
+    pi <- pmnorm_chol(lower=rep(0,D), upper=thres, mean=mu, cholesky = cholesky)
     
     sig <- theta[sig.ind]
     gamma <- theta[gamma.ind]
@@ -82,34 +82,52 @@ dbiextmix <- nimbleFunction(
     
     if(tail.ind){
       if (all((x-thres)>eta)){
-        y.tail <- t(matrix(c(x-thres, x-thres),nrow=d))
+        y.tail <- t(matrix(c(x-thres, x-thres),nrow=D))
         twollt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
-                                      lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
-                                      lamfix=lamfix, balthresh=FALSE, 
-                                      marg.scale.ind=1:2, marg.shape.ind=1:2)
-        dtail <- exp(twollt/2)
+                                       lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
+                                       lamfix=lamfix, balthresh=FALSE, 
+                                       marg.scale.ind=1:2, marg.shape.ind=1:2)
+        if (log){
+          dtail <- twollt/2
+        }else{
+          dtail <- exp(twollt/2)
+        }
       }
     }else{
-    
-    dbulk <- dmnorm_chol(x, mean=mu, cholesky = chol, prec_param = FALSE)
+      dbulk <- dmnorm_chol(x, mean=mu, cholesky = cholesky, prec_param = FALSE, log = log )
+    }
+    if (log) {
+      totalProb <- (log(1-pi) + dtail)*tail.ind + dbulk
+    }else{
+      totalProb <- (1-pi)*dtail + dbulk
     }
     
-    totalProb <- (1-pi)*dtail + dbulk
-    if (log) return(log(totalProb))
     return(totalProb)
   })
 
-# dbiextmix(y.single+thres,theta=theta, thres=thres, mu=c(3,4),
-#           chol=diag(2), d=2,
+
+
+# dbiextmix(X[2500,],theta=theta, thres=thres, mu=c(3,4),
+#           cholesky=diag(2), D=2,
 #           a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
-#           sig.ind=sig.ind, gamma.ind=gamma.ind)
+#           sig.ind=sig.ind, gamma.ind=gamma.ind,log=TRUE)
+# 
+# res <- c()
+
+# for (i in 1:2500){
+#   res <- c(res,dbiextmix(X[i,],theta=theta, thres=c(4.459915,6.890787), mu=c(0.1088787,0.1241724),
+#             cholesky=matrix(c(2.053366,0,1.761114,5.141259),nrow=2), D=2,
+#             a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
+#             sig.ind=sig.ind, gamma.ind=gamma.ind,log=TRUE))
+
+# }
 
 
 registerDistributions(list(
   dbiextmix = list(
-    BUGSdist = "dbiextmix(theta, thres, mu, chol, a.ind, lam.ind, lamfix, sig.ind, gamma.ind)",
+    BUGSdist = "dbiextmix(theta, thres, mu, cholesky, a.ind, lam.ind, lamfix, sig.ind, gamma.ind)",
     types = c('value = double(1)', 'theta = double(1)', 'thres = double(1)', 
-              'mu = double(1)', 'chol = double(2)', 'd = integer(0)', 'a.ind = double(0)', 
+              'mu = double(1)', 'cholesky = double(2)', 'D = integer(0)', 'a.ind = double(0)', 
               'lam.ind = double(0)', 'lamfix = logical(0)', 'sig.ind = double(1)',
               'gamma.ind = double(1)')
   )))
@@ -124,9 +142,16 @@ uppertri_mult_diag <- nimbleFunction(
     return(out)
   })
 
-bivextmixcode <- nimbleCode({
-  Ustar[1:d,1:d] ~ dlkj_corr_cholesky(1.3, d)
-  U[1:d,1:d] <- uppertri_mult_diag(Ustar[1:d, 1:d], sds[1:d])
+BivExtMixcode <- nimbleCode({
+  # for (i in 1:D)
+  #   sds[i] ~ dunif(0, 100)
+  # Ustar[1:D,1:D] ~ dlkj_corr_cholesky(1.3, D)
+  # U[1:D,1:D] <- uppertri_mult_diag(Ustar[1:D, 1:D], sds[1:D])
+  S[1,1] <- 100
+  S[1,2] <- 0
+  S[2,1] <- 0
+  S[2,2] <- 100
+  U[1:D,1:D] ~ dinvwish(S=S[1:2,1:2], df=3)
   
   for (i in 1:3)
     theta[i] ~ dunif(0,50)
@@ -134,22 +159,22 @@ bivextmixcode <- nimbleCode({
     theta[i] ~ dunif(0,1)
   
   for (i in 1:2)
-    mu[i] ~ dnorm(0,100)
+    mu[i] ~ T(dnorm(0, sd=100),0, 4.6)
   
   for (i in 1:2)
     thres[i] ~ dunif(lb[i], ub[i])
 
   for (i in 1:N)
-    y[i,1:d] ~ dbiextmix(theta=theta[1:5], thres=thres[1:d], mu=mu[1:d], 
-                         chol=U[1:d,1:d],
+    y[i,1:D] ~ dbiextmix(theta=theta[1:5], thres=thres[1:D], mu=mu[1:D], 
+                         cholesky=U[1:D,1:D],
                          a.ind=a.ind, lam.ind=lam.ind, lamfix=lamfix, 
-                         sig.ind=sig.ind[1:d], gamma.ind=gamma.ind[1:d])
+                         sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
 })
 
 
-# why d is unused?
-biextmixmodel <- nimbleModel(bivextmixcode, constants = list(N = 2500, 
-                                                             d = 2,
+# why D is unused?
+BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 2500, 
+                                                             D = 2,
                                                              a.ind = 1,
                                                              lam.ind = 2,
                                                              sig.ind = c(2,3),
@@ -161,42 +186,26 @@ biextmixmodel <- nimbleModel(bivextmixcode, constants = list(N = 2500,
 
 
 
-biextmixmodel$setData(list(y = X))  ## Set those values as data in the model
-cbiextmixmodel <- compileNimble(biextmixmodel)
+BivExtMixmodel$setData(list(y = X))  ## Set those values as data in the model
+cBivExtMixmodel <- compileNimble(BivExtMixmodel)
 
 
-dSS <- nimbleFunction(
-  run = function(x = double(1), mu = double(1), cov=double(2), theta=double(0), log = logical(0, default = 0)) {
-    returnType(double())
-    cov.cho <- chol(cov)
-    comp1 <- theta*dmnorm_chol(x, mean=mu[1:2], cholesky=cov.cho, prec_param = FALSE)
-    comp2 <- (1-theta)*dmnorm_chol(x, mean=mu[3:4], cholesky=cov.cho, prec_param = FALSE)
-    
-    totalProb <- comp1 + comp2
-    if (log) return(log(totalProb))
-    return(totalProb)
-  })
+BivExtMixconf <- configureMCMC(BivExtMixmodel, monitors = c('thres','theta','mu','U'),
+                               enableWAIC = TRUE, time=TRUE)
+BivExtMixMCMC <- buildMCMC(BivExtMixconf)
+# run it to get R error report
+options(error=NULL)
+
+BivExtMixMCMC$run(1)
+
+cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
+
+t1 <- Sys.time()
+samples <- runMCMC(cBivExtMixMCMC, niter = 50000,nburnin=10000,thin=10)
+t2 <- Sys.time()
+
+print(t2-t1)
 
 
-test <- nimbleFunction(
-  run = function(lower = double(1), upper = double(1), mean=double(1),cholesky=double(2)) {
-    returnType(double(0))
-    return(pmnorm_chol(lower=lower, upper=upper, mean=mean, cholesky = cholesky))
-  })
 
-pmvnorm(lower=rep(0,2), upper=c(5,5), mean=c(3,3), sigma=diag(2), keepAttr = F)
-test(lower=rep(0,2), upper=c(5,5), mean=c(3,3), cholesky=diag(2))
-## Not run: 
-## Say we want an R function that adds 2 to every value in a vector
-add2 <- function(x) {
-  x + 2 
-}
-Radd2 <- nimbleRcall(function(x = double(1)){}, Rfun = 'add2',
-                     returnType = double(1))
-demoCode <- nimbleCode({
-  for(i in 1:4) {x[i] ~ dnorm(0,1)} 
-  z[1:4] <- Radd2(x[1:4])
-})
-demoModel <- nimbleModel(demoCode, inits = list(x = rnorm(4)),
-                         check = FALSE, calculate = FALSE)
-CdemoModel <- compileNimble(demoModel)
+
