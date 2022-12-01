@@ -27,6 +27,23 @@ pmnorm_chol <- nimbleRcall(function(lower = double(1), upper = double(1),
                                Rfun = 'R_pmnorm_chol',
                                returnType = double(0))
 
+R_dmvnorm_chol <- function(x, mean, cholesky, log){
+  sigma <- t(cholesky) %*% cholesky
+  dvect <- dmvnorm(x, mean=mean, sigma=sigma, log=log)
+  if (log) {
+    return(sum(dvect))
+  }else{
+    return(prod(dvect))
+  }
+
+}
+
+
+dmvnorm_chol <- nimbleRcall(function(x = double(2), mean = double(1), 
+                                     cholesky=double(2),log=logical(0, default = 0)){}, 
+                            Rfun = 'R_dmvnorm_chol',
+                            returnType = double(0))
+
 # pmnorm_chol(c(0,0), thres, mean=c(3,4), cholesky = diag(2))
 
 #why switching theta and x will cause error
@@ -36,7 +53,7 @@ nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=doub
                                             marg.scale.ind=double(1), marg.shape.ind=double(1)){}, 
                                    Rfun = 'nll.powunif.GPD',
                                    returnType = double(0))
-
+# 
 # thres <- c(5.55,6.213)
 # theta <- c(1.656, 0.571, 0.451, 0.253, 0.035)
 # a.ind <- c(1)
@@ -45,12 +62,14 @@ nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=doub
 # gamma.ind <- c(4,5)
 # marg.scale.ind <- c(1,2)
 # marg.shape.ind <- c(1,2)
-#  
+# 
 # cond <- (X[,1]>thres[1]) | (X[,2]>thres[2])
 # y.tail <- cbind(X[cond,1] - thres[1],
 #                 X[cond,2] - thres[2])
 # y.single <- y.tail[1,]
 # 
+# y.bulk <- X[!cond,]
+
 # rbind(y.single,y.single)
 # nll.powunif.GPD(theta=theta, x=rbind(y.single,y.single), u=min(y.tail)-0.01, a.ind=a.ind, lam.ind=lam.ind, sig.ind=sig.ind,
 #                 gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, 
@@ -62,14 +81,18 @@ nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=doub
 
 
 dbiextmix <- nimbleFunction(
-  run = function(x=double(1), theta=double(1), thres=double(1), mu=double(1), 
+  run = function(x=double(2), theta=double(1), thres=double(1), mu=double(1), 
                  cholesky=double(2), D=integer(0, default=2),
                  a.ind=double(0), lam.ind=double(0), lamfix=logical(0, default = 0), 
                  sig.ind=double(1), gamma.ind=double(1),
                  log = logical(0, default = 0)) {
-    returnType(double())
+    returnType(double(0))
     
-    tail.ind <- any(x>thres)
+    cond <- (x[,1]>thres[1]) | (x[,2]>thres[2])
+    n.tail <- sum(cond)
+    n.bulk <- sum(!cond)
+    y.tail <- matrix(c(x[cond,1] - thres[1], x[cond,2] - thres[2]), ncol=D)
+    y.bulk <- x[!cond,]
     
     pi <- pmnorm_chol(lower=rep(0,D), upper=thres, mean=mu, cholesky = cholesky)
     
@@ -80,53 +103,69 @@ dbiextmix <- nimbleFunction(
     dtail <- 0
     dbulk <- 0
     
-    if(tail.ind){
-      if (all((x-thres)>eta)){
-        y.tail <- t(matrix(c(x-thres, x-thres),nrow=D))
-        twollt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
+    if (n.tail>0){
+      y.min <- eta
+      for (i in 1:D){
+          y.min[i] <- min(y.tail[,i])
+      }
+      if (all(y.min>eta)){
+        llt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
                                        lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
                                        lamfix=lamfix, balthresh=FALSE, 
                                        marg.scale.ind=1:2, marg.shape.ind=1:2)
         if (log){
-          dtail <- twollt/2
+          dtail <- llt
         }else{
-          dtail <- exp(twollt/2)
+          dtail <- exp(llt)
         }
+      }else{
+        if (log) dtail <- -10^100
       }
-    }else{
-      dbulk <- dmnorm_chol(x, mean=mu, cholesky = cholesky, prec_param = FALSE, log = log )
     }
+    
+    if (n.bulk>0){
+      dbulk <- dmvnorm_chol(y.bulk, mean=mu, cholesky = cholesky, log = log )
+    }
+    
     if (log) {
-      totalProb <- (log(1-pi) + dtail)*tail.ind + dbulk
+      totalProb <- n.tail*log(1-pi) + dtail + dbulk
     }else{
-      totalProb <- (1-pi)*dtail + dbulk
+      totalProb <- (1-pi)^n.tail *dtail*dbulk
     }
     
     return(totalProb)
   })
 
-
-
-# dbiextmix(X[2500,],theta=theta, thres=thres, mu=c(3,4),
+# 
+# dat <- X[,]
+# 
+# dbiextmix1(dat,theta=theta, thres=thres, mu=c(3,4),
 #           cholesky=diag(2), D=2,
 #           a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
 #           sig.ind=sig.ind, gamma.ind=gamma.ind,log=TRUE)
 # 
 # res <- c()
-
-# for (i in 1:2500){
-#   res <- c(res,dbiextmix(X[i,],theta=theta, thres=c(4.459915,6.890787), mu=c(0.1088787,0.1241724),
-#             cholesky=matrix(c(2.053366,0,1.761114,5.141259),nrow=2), D=2,
-#             a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
-#             sig.ind=sig.ind, gamma.ind=gamma.ind,log=TRUE))
-
+# 
+# for (i in 1:nrow(dat)){
+#    res <- c(res,dbiextmix(dat[i,],theta=theta, thres=thres, mu=c(3,4),
+#              cholesky=diag(2), D=2,
+#              a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
+#              sig.ind=sig.ind, gamma.ind=gamma.ind,log=TRUE))
+#    # if (i>=2) {
+#    #   res2 <- dbiextmix1(y.tail[1:i,],theta=theta, thres=thres, mu=c(3,4),
+#    #                      cholesky=diag(2), D=2,
+#    #                      a.ind=a.ind, lam.ind=lam.ind, lamfix=FALSE,
+#    #                      sig.ind=sig.ind, gamma.ind=gamma.ind,log=TRUE)
+#    #   if (sum(res)!=res2) break
+#    # }
 # }
+# print(sum(res))
 
 
 registerDistributions(list(
   dbiextmix = list(
     BUGSdist = "dbiextmix(theta, thres, mu, cholesky, a.ind, lam.ind, lamfix, sig.ind, gamma.ind)",
-    types = c('value = double(1)', 'theta = double(1)', 'thres = double(1)', 
+    types = c('value = double(2)', 'theta = double(1)', 'thres = double(1)', 
               'mu = double(1)', 'cholesky = double(2)', 'D = integer(0)', 'a.ind = double(0)', 
               'lam.ind = double(0)', 'lamfix = logical(0)', 'sig.ind = double(1)',
               'gamma.ind = double(1)')
@@ -143,15 +182,15 @@ uppertri_mult_diag <- nimbleFunction(
   })
 
 BivExtMixcode <- nimbleCode({
-  # for (i in 1:D)
-  #   sds[i] ~ dunif(0, 100)
-  # Ustar[1:D,1:D] ~ dlkj_corr_cholesky(1.3, D)
-  # U[1:D,1:D] <- uppertri_mult_diag(Ustar[1:D, 1:D], sds[1:D])
-  S[1,1] <- 100
-  S[1,2] <- 0
-  S[2,1] <- 0
-  S[2,2] <- 100
-  U[1:D,1:D] ~ dinvwish(S=S[1:2,1:2], df=3)
+  for (i in 1:D)
+    sds[i] ~ dunif(0, 100)
+  Ustar[1:D,1:D] ~ dlkj_corr_cholesky(1.3, D)
+  U[1:D,1:D] <- uppertri_mult_diag(Ustar[1:D, 1:D], sds[1:D])
+  # S[1,1] <- 100
+  # S[1,2] <- 0
+  # S[2,1] <- 0
+  # S[2,2] <- 100
+  # U[1:D,1:D] ~ dinvwish(S=S[1:2,1:2], df=3)
   
   for (i in 1:3)
     theta[i] ~ dunif(0,50)
@@ -164,11 +203,10 @@ BivExtMixcode <- nimbleCode({
   for (i in 1:2)
     thres[i] ~ dunif(lb[i], ub[i])
 
-  for (i in 1:N)
-    y[i,1:D] ~ dbiextmix(theta=theta[1:5], thres=thres[1:D], mu=mu[1:D], 
-                         cholesky=U[1:D,1:D],
-                         a.ind=a.ind, lam.ind=lam.ind, lamfix=lamfix, 
-                         sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
+  y[1:N,1:D] ~ dbiextmix(theta=theta[1:5], thres=thres[1:D], mu=mu[1:D], 
+                       cholesky=U[1:D,1:D],
+                       a.ind=a.ind, lam.ind=lam.ind, lamfix=lamfix, 
+                       sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
 })
 
 
@@ -190,22 +228,27 @@ BivExtMixmodel$setData(list(y = X))  ## Set those values as data in the model
 cBivExtMixmodel <- compileNimble(BivExtMixmodel)
 
 
-BivExtMixconf <- configureMCMC(BivExtMixmodel, monitors = c('thres','theta','mu','U'),
+BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                enableWAIC = TRUE, time=TRUE)
 BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 # run it to get R error report
 options(error=NULL)
 
-BivExtMixMCMC$run(1)
+# t1 <- Sys.time()
+# BivExtMixMCMC$run(1)
+# t2 <- Sys.time()
+# 
+# print(t2-t1)
+
 
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-samples <- runMCMC(cBivExtMixMCMC, niter = 50000,nburnin=10000,thin=10)
+samples <- runMCMC(cBivExtMixMCMC, niter = 30000,nburnin=20000,thin=5,summary = TRUE, WAIC = TRUE)
 t2 <- Sys.time()
 
 print(t2-t1)
+plot(samples[,'thres[2]'], type = 'l', main = 'thres[2] trace plot')
 
-
-
-
+calculateWAIC(cBivExtMixMCMC)
+calculateWAIC(samples, BivExtMixmodel)
