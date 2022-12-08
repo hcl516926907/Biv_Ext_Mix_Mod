@@ -136,8 +136,121 @@ plot(samples[,'mu[3]'], type = 'l', main = 'c trace plot')
 plot(density(samples[,'theta']), main = 'density of theta')
 
 
+#---------------------------------Gaussia mixture model-------------------------------
+mu1 <- c(3,4)
+mu2 <- c(7,8)
+# mu2 <- c(10,15)
+cov1 <- matrix(c(1,0.8,0.8,1),nrow=2)
+cov2 <- matrix(c(2,0.6,0.6,1),nrow=2)
+
+set.seed(1234)
+
+dat1 <- rmvnorm(2000, mean=mu1,sigma=cov1)
+dat2 <- rmvnorm(2000, mean=mu2,sigma=cov2)
+mix.pi <- runif(2000)
+
+p <- 0.7
+dat <- rbind(dat1[mix.pi>p,], dat2[mix.pi<=p,])
+plot(dat)
+
+probs <- c(1/4, 1/10, 1 - 1/4 - 1/10)
+x <- rcat(n = 30, probs)
+dcat(x, probs)
+
+uppertri_mult_diag <- nimbleFunction(
+  run = function(mat = double(2), vec = double(1)) {
+    returnType(double(2))
+    p <- length(vec)
+    out <- matrix(nrow = p, ncol = p, init = FALSE)
+    for(i in 1:p)
+      out[ , i] <- mat[ , i] * vec[i]
+    return(out)
+  })
 
 
-foo <- nimbleFunction( run = function(x = double(1)) {return(sum(x)); returnType(double())})
-cfoo <- compileNimble(foo)
-cfoo(1:10)
+dSS <- nimbleFunction(
+  run = function(x = double(1), mu = double(1), cov=double(2), theta=double(1), log = logical(0, default = 0)) {
+    returnType(double(0))
+    D <- length(x)
+    K <- length(theta)
+    totalProb <- 0
+    for (i in 1:K){
+      mu.k <- mu[((i-1)*D+1):(i*D)]
+      cov.k <- cov[1:D, ((i-1)*D+1):(i*D)] 
+      comp.k <- theta[i]*dmnorm_chol(x, mean=mu.k, cholesky=cov.k, prec_param = FALSE)
+      totalProb <- totalProb + comp.k
+    }
+    if (log) return(log(totalProb))
+    return(totalProb)
+  })
+
+dSS(x=dat[2,], mu=c(3,4,3,3), cov=cbind(diag(2),2*diag(2)),theta=c(1,0))
+
+registerDistributions(list(
+  dSS = list(
+    BUGSdist = "dSS(mu, cov, theta)",
+    types = c('value = double(1)', 'mu = double(1)', 'cov = double(2)', 'theta = double(1)')
+  )))
+
+SScode <- nimbleCode({
+  for (i in 1:(D*K))
+    sds[i] ~ dunif(0, 100)
+
+  for ( i in 1:K) {
+    Ustar[1:D,((i-1)*D+1):(i*D)] ~ dlkj_corr_cholesky(1.3, D)
+    U[1:D,((i-1)*D+1):(i*D)] <- uppertri_mult_diag(Ustar[1:D, ((i-1)*D+1):(i*D)], sds[((i-1)*D+1):(i*D)])
+  }
+
+  theta[1:K] ~ ddirch(alpha[1:K])
+  for (i in 1:(D*K))
+    mu[i] ~  dunif(0, 100)
+
+  for (i in 1:N)
+    y[i,1:D] ~ dSS(mu=mu[1:(D*K)],cov=U[1:D,1:(D*K)], theta=theta[1:K]) ## Note NIMBLE allows R-like named-parameter syntax
+})
+
+# SScode <- nimbleCode({
+#   for (i in 1:(D*K))
+#     sds[i] ~ dunif(0, 100)
+#   
+#   for ( i in 1:K) {
+#     Ustar[1:D,((i-1)*D+1):(i*D)] ~ dlkj_corr_cholesky(1.3, D)
+#     U[1:D,((i-1)*D+1):(i*D)] <- uppertri_mult_diag(Ustar[1:D, ((i-1)*D+1):(i*D)], sds[((i-1)*D+1):(i*D)])
+#   }
+#   
+#   for (i in 1:(D*K))
+#     mu[i] ~  dunif(0, 100)
+#   
+#   for (i in 1:N)
+#     y[i,1:D] ~ dmnorm(mean=mu[1:(D*K)],cholesky =U[1:D,1:(D*K)], prec_param=0) 
+# })
+
+
+
+SSmodel <- nimbleModel(SScode, constants = list(N = 2000,
+                                                D = 2,
+                                                K = 2,
+                                                alpha = rep(0.5,2)), check = FALSE)
+
+
+SSmodel$setData(list(y = dat))  ## Set those values as data in the model
+cSSmodel <- compileNimble(SSmodel)
+
+
+SSmcmc <- buildMCMC(SSmodel)
+cSSmcmc <- compileNimble(SSmcmc, project = SSmodel)
+samples <- runMCMC(cSSmcmc, niter = 45000,nburnin=5000,thin=20)
+plot(samples[,'mu[1]'], type = 'l', main = 'c trace plot')
+
+plot(density(samples[,'theta[1]']), main = 'density of theta')
+
+calculateWAIC(samples, SSmodel)
+# K = 1: 12059.89
+# K = 2: 11965.95
+# K = 3: 12061.66
+library(coda)
+samples.mcmc <- mcmc(samples)
+
+effectiveSize(samples.mcmc)
+
+autocorr.plot(samples.mcmc)
