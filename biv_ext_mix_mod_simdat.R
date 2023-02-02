@@ -367,19 +367,19 @@ save(X.p09, u.x.p09,
 
 #-------------------generate data with non-stationarity in the threshold---------
 set.seed(1234)
-x1 <- rnorm(2500,1,1)
-x2 <- rnorm(2500,2,1)
-x3 <- rnorm(2500,3,1)
-x4 <- rnorm(2500,4,1)
+x1 <- rnorm(2500,0,1)
+x2 <- rnorm(2500,0,2)
+x3 <- rnorm(2500,0,3)
+x4 <- rnorm(2500,0,4)
 X <- cbind(x1,x2,x3,x4)
 beta1 <- c(1,2,3,4)
-beta2 <- c(2,3,4,5)
+beta2 <- c(-2,-3,4,5)
 BETA <- cbind(beta1,beta2)
 eta <- X %*% BETA
 upper <- 8
 lower <- 5
-U <- lower + (upper-lower)*sigmoid(eta,b=30)
-
+U <- lower + (upper-lower)*sigmoid(0.1*eta)
+plot(U)
 
 d<-2
 a<-c(1.656,1.656)
@@ -395,18 +395,28 @@ mu <- c(5,5.41)
 rho=0.5
 sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
 
-rv.uni <- runif(N)
+p.vec <- c()
+for (i in 1:2500){
+    p.vec[i] <- pmvnorm(lower=rep(0,2), upper=U[i,], mean=mu, sigma=sigma, keepAttr = F)
+}
+
+rv.uni <- runif(2500)
+Y.bulk <- c()
+Y.tail <- c()
 for (i in 1:N){
-    if (rv.uni[i] < p){
-        Y.tail <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)$X
-        Y[i,] <- Y.tail + U[i,]           
+    if (rv.uni[i] < p.vec[i]){
+        y<- rtmvnorm(1, mean=mu, sigma=sigma, lower=c(0,0),upper=U[i,])
+        Y[i,] <- y
+        Y.bulk <- rbind(Y.bulk, y)
     }else{
-        Y.bulk <- rtmvnorm(1, mean=mu, sigma=sigma, lower=c(0,0),upper=U[i,])
-        Y[i,] <- Y.bulk
+        y <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)$X
+        Y[i,] <- y + U[i,]   
+        Y.tail <- rbind(Y.tail,y + U[i,]  )
     }
 }
 plot(Y)
-lines(U, col='red')
+plot(Y.tail)
+# lines(U, col='red')
 
 save(X, Y, U,
      file=file.path(dir.out,'simulation_data_non_stationary.RData'))
