@@ -339,7 +339,7 @@ chiplot(X, qlim=c(0.02,0.99), ask=F)
 chiPlot(data=X, ylabel=expression(chi(q)~"prop=0.05"), chimod=NULL, nsim=2000, nq = 50, qmin = 0.5, qmax = 0.99)
 
 
-#----------------regenerate the samples with correct sample size
+#----------------regenerate the samples with correct sample size-------------------
 d<-2
 a<-c(1.656,1.656)
 beta<-c(0,0)
@@ -365,3 +365,48 @@ u.x.p09 <- u.x
 save(X.p09, u.x.p09,
      file=file.path(dir.out,'simulation_data_pos_shape_fixed.RData'))
 
+#-------------------generate data with non-stationarity in the threshold---------
+set.seed(1234)
+x1 <- rnorm(2500,1,1)
+x2 <- rnorm(2500,2,1)
+x3 <- rnorm(2500,3,1)
+x4 <- rnorm(2500,4,1)
+X <- cbind(x1,x2,x3,x4)
+beta1 <- c(1,2,3,4)
+beta2 <- c(2,3,4,5)
+BETA <- cbind(beta1,beta2)
+eta <- X %*% BETA
+upper <- 8
+lower <- 5
+U <- lower + (upper-lower)*sigmoid(eta,b=30)
+
+
+d<-2
+a<-c(1.656,1.656)
+beta<-c(0,0)
+sig<-c(0.571,0.451)
+gamma<-c(0.253,0.035)
+N <- 2500
+p <- 0.05
+
+Y <- matrix(NA, nrow=N,ncol=2)
+
+mu <- c(5,5.41)
+rho=0.5
+sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
+
+rv.uni <- runif(N)
+for (i in 1:N){
+    if (rv.uni[i] < p){
+        Y.tail <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)$X
+        Y[i,] <- Y.tail + U[i,]           
+    }else{
+        Y.bulk <- rtmvnorm(1, mean=mu, sigma=sigma, lower=c(0,0),upper=U[i,])
+        Y[i,] <- Y.bulk
+    }
+}
+plot(Y)
+lines(U, col='red')
+
+save(X, Y, U,
+     file=file.path(dir.out,'simulation_data_non_stationary.RData'))
