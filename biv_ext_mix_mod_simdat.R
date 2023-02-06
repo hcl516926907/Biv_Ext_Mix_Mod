@@ -376,9 +376,9 @@ beta1 <- c(1,2,3,4)
 beta2 <- c(-2,-3,4,5)
 BETA <- cbind(beta1,beta2)
 eta <- X %*% BETA
-upper <- 8
-lower <- 5
-U <- lower + (upper-lower)*sigmoid(0.1*eta)
+upper <- c(8,8)
+lower <- c(5,5)
+U <- (lower + sweep(sigmoid(0.1*eta),2, upper-lower, "*"))
 plot(U)
 
 d<-2
@@ -403,6 +403,7 @@ for (i in 1:2500){
 rv.uni <- runif(2500)
 Y.bulk <- c()
 Y.tail <- c()
+Y.tail.raw <- c()
 for (i in 1:N){
     if (rv.uni[i] < p.vec[i]){
         y<- rtmvnorm(1, mean=mu, sigma=sigma, lower=c(0,0),upper=U[i,])
@@ -411,11 +412,13 @@ for (i in 1:N){
     }else{
         y <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)$X
         Y[i,] <- y + U[i,]   
+        Y.tail.raw <- rbind(Y.tail.raw, y)
         Y.tail <- rbind(Y.tail,y + U[i,]  )
     }
 }
 plot(Y)
 plot(Y.tail)
+plot(Y.tail.raw)
 # lines(U, col='red')
 
 save(X, Y, U,
