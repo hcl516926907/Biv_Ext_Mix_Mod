@@ -9,6 +9,7 @@ source("KRSW/ModelDiagnosticsNewNames.r")
 library(evd)
 library(tmvtnorm)
 library(Rcpp)
+library(pracma)
 
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
