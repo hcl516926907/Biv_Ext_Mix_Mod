@@ -8,6 +8,7 @@ source("KRSW/Gumbel_T_Functions.r")
 source("KRSW/ModelDiagnosticsNewNames.r")
 library(evd)
 library(tmvtnorm)
+library(Rcpp)
 
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
@@ -377,7 +378,7 @@ beta2 <- c(-2,-3,4,5)
 BETA <- cbind(beta1,beta2)
 eta <- X %*% BETA
 upper <- c(8,8)
-lower <- c(5,5)
+lower <- c(6,6)
 U <- (lower + sweep(sigmoid(0.1*eta),2, upper-lower, "*"))
 plot(U)
 
@@ -395,10 +396,13 @@ mu <- c(5,5.41)
 rho=0.5
 sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
 
+t1 <- Sys.time()
 p.vec <- c()
 for (i in 1:2500){
     p.vec[i] <- pmvnorm(lower=rep(0,2), upper=U[i,], mean=mu, sigma=sigma, keepAttr = F)
 }
+t2 <- Sys.time()
+print(t2-t1)
 
 rv.uni <- runif(2500)
 Y.bulk <- c()
@@ -423,3 +427,93 @@ plot(Y.tail.raw)
 
 save(X, Y, U,
      file=file.path(dir.out,'simulation_data_non_stationary.RData'))
+
+#------------------------------Rcpp--------------------------------------
+src1 <-
+'
+double rcpp_sum(NumericVector v){
+  double sum = 0;
+  for(int i=0; i<v.length(); ++i){
+    sum += v[i];
+  }
+
+  NumericVector d = {1,2,3};
+  Rcout << d;
+  return(sum);
+
+}'
+
+Rcpp::cppFunction(code = src1)
+rcpp_sum(1:10000)
+
+src2 <- '
+NumericVector my_fun(){
+    // calling rnorm()
+    Function f("rnorm");   
+
+    // Next code is interpreted as rnorm(n=5, mean=10, sd=2)
+    return f(5, Named("sd")=2, Named("mean")=10);
+}
+'
+Rcpp::cppFunction(code = src2)
+my_fun()
+
+
+src3 <-
+'
+NumericVector row_sum(NumericMatrix M){
+  NumericVector v (M.nrow());
+  Function f("sum");
+  for(int i=0; i<M.nrow(); ++i){
+    v[i] = sum(M(i,_));
+  }
+  return(v);
+}
+'
+
+Rcpp::cppFunction(code = src3)
+row_sum(matrix(c(1,2,3,4),ncol=2))
+
+
+src4 <-
+'
+double my_function(NumericVector ub, NumericMatrix M){
+  NumericVector lb {0,0};
+  Environment pkg = Environment::namespace_env("mvtnorm");
+  Function pmvnorm = pkg["pmvnorm"];
+  SEXP val = pmvnorm(Named("lower",lb), Named("upper",ub),Named("mean",ub),
+                Named("sigma",M), Named("keepAttr", false));
+  double res =  Rcpp::as<double>(val);
+  return(res);
+}
+'
+
+Rcpp::cppFunction(code = src4)
+my_function(c(2,2),matrix(c(1,0,0,4),ncol=2))
+
+
+
+src5 <-
+'
+NumericVector mix_prob(NumericMatrix UB, NumericVector mu, NumericMatrix M){
+  NumericVector lb (mu.length());
+  NumericVector prob_vec (UB.nrow());
+  
+  Environment pkg = Environment::namespace_env("mvtnorm");
+  Function pmvnorm = pkg["pmvnorm"];
+  
+  for(int i=0; i<UB.nrow(); ++i){
+    SEXP val = pmvnorm(Named("lower",lb), Named("upper",UB(i,_)),Named("mean",mu),
+                Named("sigma",M), Named("keepAttr", false));
+    double res =  Rcpp::as<double>(val);
+    prob_vec[i] = res;
+  }
+  return(prob_vec);
+}
+'
+
+Rcpp::cppFunction(code = src5)
+t1 <- Sys.time()
+res <- mix_prob(U,mu,sigma)
+t2 <- Sys.time()
+print(t2-t1)
