@@ -2,6 +2,8 @@ source("KRSW/RevExp_U_Functions.r")
 source("KRSW/CommonFunctions.r")
 library(nimble, warn.conflicts = F)
 library(mvtnorm)
+library(parallel)
+
 
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
@@ -36,9 +38,32 @@ R_mix_prob_sg <- function(upper, mu, cholesky){
 }
 
 R_mix_prob <- function(thres, mu, cholesky){
-  D <- length(mu)
   prob.all <- apply(thres,1,R_mix_prob_sg, mu=mu, cholesky=cholesky)
   return(sum(log(1-prob.all)))
+}
+
+R_mix_prob_1 <- function(thres,mu,cholesky){
+  prob.all <- sapply(seq_len(nrow(thres)), function(i) R_mix_prob_sg(thres[i,],mu,cholesky))
+  return(sum(log(1-prob.all)))
+}
+
+R_mix_prob_2 <- function(thres, mu, cholesky){
+  prob.all <- mclapply(seq_len(nrow(thres)), function(i) R_mix_prob_sg(thres[i,],mu,cholesky))
+  return(sum(log(1-unlist(prob.all))))
+}
+
+
+system.time(R_mix_prob(thres, mu, cholesky))
+t1 <- Sys.time()
+system.time(R_mix_prob_1(thres, mu, cholesky))
+t2 <- Sys.time()
+system.time(R_mix_prob_2(thres, mu, cholesky))
+t3 <- Sys.time()
+print(c(t3-t2,t2-t1))
+# system.time(R_mix_prob_sg(thres[1,], mu, cholesky))
+
+R_pmax <- function(mat, eta){
+  return(sweep(mat, 2, eta, 'pmax'))
 }
 
 mix_prob_sum <- nimbleRcall(function(thres = double(2), mu = double(1),
@@ -77,6 +102,10 @@ nim_nrow <- nimbleRcall(function(x = double(2)){},
                         Rfun = 'nrow',
                         returnType = double(0))
 
+nim_pmax <- nimbleRcall(function(mat = double(2), eta = double(1)){}, 
+                        Rfun = 'R_pmax',
+                        returnType = double(2))
+
 dbiextmix <- nimbleFunction(
   run = function(x=double(2), theta=double(1), beta=double(2), X=double(2),
                  lower= double(1), upper= double(1),mu=double(1), 
@@ -104,23 +133,18 @@ dbiextmix <- nimbleFunction(
     dbulk <- 0
     
     if (n.tail>0){
-      y.min <- eta
-      for (i in 1:D){
-        y.min[i] <- min(y.tail[,i])
-      }
-      if (all(y.min>eta)){
-        llt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
-                                    lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
-                                    lamfix=lamfix, balthresh=FALSE, 
-                                    marg.scale.ind=1:2, marg.shape.ind=1:2)
-        if (log){
-          dtail <- llt
-        }else{
-          dtail <- exp(llt)
-        }
+      # max of y.tail and endpoint
+      y.tail.max <- nim_pmax(y.tail,eta+10^-10)
+      llt <- -nim_nll_powunif_GPD(x=y.tail.max, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
+                                  lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
+                                  lamfix=lamfix, balthresh=FALSE, 
+                                  marg.scale.ind=1:2, marg.shape.ind=1:2)
+      if (log){
+        dtail <- llt
       }else{
-        if (log) dtail <- -10^100
+        dtail <- exp(llt)
       }
+      
     }
     
     if (n.bulk>0){
@@ -148,7 +172,7 @@ sig.ind <- c(2,3)
 gamma.ind <- c(4,5)
 marg.scale.ind <- c(1,2)
 marg.shape.ind <- c(1,2)
-beta <- 0.11*cbind(c(1,2,3,4),c(-2,-3,4,5))
+beta <- 0.1*cbind(c(1,2,3,4),c(-2,-3,4,5))
 lower <- 5
 upper <- 8
 mu <- c(5,5.41)
@@ -167,67 +191,6 @@ dbiextmix(x=Y, theta=theta, beta=beta, X=X,
           log =1)
 
 
-
-#----------------debug-------------------
-beta <- cbind(c(1,2,3,4),c(-2,-3,4,5))
-lower <- c(5,5)
-upper <- c(8,8)
-lp <-  X %*% beta
-thres <- map_thres(lower,upper,lp)
-plot(thres)
-cond <- (x[,1]>thres[,1]) | (x[,2]>thres[,2])
-n.tail <- sum(cond)
-n.bulk <- sum(!cond)
-y.tail <- matrix(c(x[cond,1] - thres[cond,1], x[cond,2] - thres[cond,2]), ncol=D)
-y.bulk <- x[!cond,]
-
-log.sum <- mix_prob_sum(thres,mu,cholesky)
-
-sig <- theta[sig.ind]
-gamma <- theta[gamma.ind]
-eta <- -sig/gamma
-
-dtail <- 0
-dbulk <- 0
-
-llt <- NA
-if (n.tail>0){
-  y.min <- eta
-  for (i in 1:D){
-    y.min[i] <- min(y.tail[,i])
-  }
-  if (all(y.min>eta)){
-    llt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
-                                lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
-                                lamfix=lamfix, balthresh=FALSE, 
-                                marg.scale.ind=1:2, marg.shape.ind=1:2)
-    if (log){
-      dtail <- llt
-    }else{
-      dtail <- exp(llt)
-    }
-  }else{
-    if (log) dtail <- -10^100
-  }
-}
-
-if (n.bulk>0){
-  dbulk <- dmvnorm_chol(y.bulk, mean=mu, cholesky = cholesky, log = log )
-}
-
-if (log) {
-  totalProb <- log.sum + dtail + dbulk
-}else{
-  totalProb <- exp(log.sum) *dtail*dbulk
-}
-print(totalProb)
-
-
-
-
-
-
-#----------------------------------------
 
 rbiextmix <- nimbleFunction(
   run = function(n=integer(0), theta=double(1), beta=double(2), X=double(2), 
@@ -314,7 +277,10 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 250,nburnin=50,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 5000,nburnin=2500,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1234)
 t2 <- Sys.time()
 print(t2-t1)
+
+
+
