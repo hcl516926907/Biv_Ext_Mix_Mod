@@ -422,8 +422,8 @@ for (i in 1:N){
     }
 }
 plot(Y)
-plot(Y.tail)
-plot(Y.tail.raw)
+# plot(Y.tail)
+# plot(Y.tail.raw)
 # lines(U, col='red')
 
 save(X, Y, U,
