@@ -373,11 +373,15 @@ x1 <- rnorm(2500,0,1)
 x2 <- rnorm(2500,0,2)
 x3 <- rnorm(2500,0,3)
 x4 <- rnorm(2500,0,4)
-X <- cbind(x1,x2,x3,x4)
+X1 <- cbind(x1,x2,x3,x4)
+x5 <- rnorm(2500,0,1)
+x6 <- rnorm(2500,0,2)
+x7 <- rnorm(2500,0,3)
+x8 <- rnorm(2500,0,4)
+X2 <- cbind(x5,x6,x7,x8)
 beta1 <- c(1,2,3,4)
 beta2 <- c(-2,-3,4,5)
-BETA <- cbind(beta1,beta2)
-eta <- X %*% BETA
+eta <- cbind(X1%*%beta1, X2%*%beta2)
 upper <- c(8,8)
 lower <- c(6,6)
 U <- (lower + sweep(sigmoid(0.1*eta),2, upper-lower, "*"))
@@ -426,7 +430,7 @@ plot(Y)
 # plot(Y.tail.raw)
 # lines(U, col='red')
 
-save(X, Y, U,
+save(X1,X2, Y, U,
      file=file.path(dir.out,'simulation_data_non_stationary.RData'))
 
 #------------------------------Rcpp--------------------------------------
