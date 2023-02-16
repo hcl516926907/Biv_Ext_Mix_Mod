@@ -3,6 +3,9 @@ source("KRSW/CommonFunctions.r")
 library(nimble, warn.conflicts = F)
 library(mvtnorm)
 library(parallel)
+library(pracma)
+library(Rcpp)
+library(rbenchmark)
 
 
 
@@ -52,14 +55,41 @@ R_mix_prob_2 <- function(thres, mu, cholesky){
   return(sum(log(1-unlist(prob.all))))
 }
 
+src <-
+  '
+NumericVector R_mix_prob_3(NumericMatrix UB, NumericVector mu, NumericMatrix M){
+  NumericVector lb (mu.length());
+  NumericVector prob_vec (UB.nrow());
+  
+  Environment pkg = Environment::namespace_env("mvtnorm");
+  Function pmvnorm = pkg["pmvnorm"];
+  
+  for(int i=0; i<UB.nrow(); ++i){
+    SEXP val = pmvnorm(Named("lower",lb), Named("upper",UB(i,_)),Named("mean",mu),
+                Named("sigma",M), Named("keepAttr", false));
+    double res =  Rcpp::as<double>(val);
+    prob_vec[i] = res;
+  }
+  return(prob_vec);
+}
+'
 
+
+Rcpp::cppFunction(code = src)
+
+t0 <- Sys.time()
 system.time(R_mix_prob(thres, mu, cholesky))
 t1 <- Sys.time()
 system.time(R_mix_prob_1(thres, mu, cholesky))
 t2 <- Sys.time()
 system.time(R_mix_prob_2(thres, mu, cholesky))
 t3 <- Sys.time()
-print(c(t3-t2,t2-t1))
+system.time(R_mix_prob_3(thres, mu, t(cholesky) %*% cholesky))
+t4 <- Sys.time()
+print(c(t1-t0,t2-t1,t3-t2,t4-t3))
+rbenchmark::benchmark(R_mix_prob(thres, mu, cholesky),R_mix_prob_1(thres, mu, cholesky),
+                      R_mix_prob_2(thres, mu, cholesky),R_mix_prob_3(thres, mu, t(cholesky) %*% cholesky))
+
 # system.time(R_mix_prob_sg(thres[1,], mu, cholesky))
 
 R_pmax <- function(mat, eta){
@@ -68,7 +98,7 @@ R_pmax <- function(mat, eta){
 
 mix_prob_sum <- nimbleRcall(function(thres = double(2), mu = double(1),
                                  cholesky = double(2)){}, 
-                        Rfun = 'R_mix_prob',
+                        Rfun = 'R_mix_prob_2',
                         returnType = double(0))
 
 
@@ -123,7 +153,8 @@ dbiextmix <- nimbleFunction(
     y.tail <- matrix(c(x[cond,1] - thres[cond,1], x[cond,2] - thres[cond,2]), ncol=D)
     y.bulk <- x[!cond,]
     
-    log.sum <- mix_prob_sum(thres,mu,cholesky)
+    thres.tail <- thres[cond,]
+    log.sum <- mix_prob_sum(thres.tail, mu, cholesky)
 
     sig <- theta[sig.ind]
     gamma <- theta[gamma.ind]
@@ -173,7 +204,7 @@ gamma.ind <- c(4,5)
 marg.scale.ind <- c(1,2)
 marg.shape.ind <- c(1,2)
 beta <- 0.1*cbind(c(1,2,3,4),c(-2,-3,4,5))
-lower <- 5
+lower <- 6
 upper <- 8
 mu <- c(5,5.41)
 rho=0.5
@@ -183,13 +214,21 @@ x <- Y
 D <- 2
 log <- TRUE
 lamfix=FALSE
+
+t1 <- Sys.time()
+# dbiextmix(x=Y, theta=theta, thres = c(5.5,5.5),mu=mu, 
+#           cholesky=cholesky,
+#           a.ind=a.ind, lam.ind=lam.ind, lamfix=0, 
+#           sig.ind=sig.ind, gamma.ind=gamma.ind,
+#           log =1)
 dbiextmix(x=Y, theta=theta, beta=beta, X=X,
-          lower= lower, upper= upper,mu=mu, 
+          lower= lower, upper= upper,mu=mu,
           cholesky=cholesky,
-          a.ind=a.ind, lam.ind=lam.ind, lamfix=0, 
+          a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
           sig.ind=sig.ind, gamma.ind=gamma.ind,
           log =1)
-
+t2 <- Sys.time()
+print(t2-t1)
 
 
 rbiextmix <- nimbleFunction(
@@ -257,7 +296,7 @@ BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 2500,
                                                               D.pred = 4,
                                                               cov_beta = 1000*diag(2),
                                                               X = X,
-                                                              lower = c(5,5),
+                                                              lower = c(6,6),
                                                               upper = c(8,8),
                                                               a.ind = 1,
                                                               lam.ind = 2,
@@ -277,10 +316,11 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 5000,nburnin=2500,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 25000,nburnin=5000,thin=10,
                    summary = TRUE, WAIC = TRUE,setSeed = 1234)
 t2 <- Sys.time()
 print(t2-t1)
 
-
+plot(results$samples[,'beta[4, 1]'],type='l',main='traceplot of beta[4,1]')
+plot(results$samples[,'mu[1]'],type='l')
 
