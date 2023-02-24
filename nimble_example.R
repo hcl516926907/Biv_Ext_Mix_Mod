@@ -254,3 +254,62 @@ samples.mcmc <- mcmc(samples)
 effectiveSize(samples.mcmc)
 
 autocorr.plot(samples.mcmc)
+
+
+
+
+#-----------------------------------linear model example-----------------------
+
+dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
+
+load(file.path(dir.in,'simulation_data_non_stationary.RData'))
+
+
+true_betas <- c(0.1, 0.2, 0.3, 0.4) # coefficients
+sigma <- 1
+y <- rnorm(n, X1 %*% true_betas, sigma)
+
+dnorm_vec <- nimbleFunction( ## Define the distribution
+  run = function(x = double(1), mean = double(1), sd = double(0), log = integer(0, default = 0)) {
+    returnType(double(0))
+    logProb <- sum(dnorm(x, mean, sd, log = TRUE))
+    if(log) return(logProb)
+    else return(exp(logProb)) 
+  })
+
+rnorm_vec <- nimbleFunction( ## Define a simulation function, optionally.
+  run = function(n = integer(0), mean = double(1), sd = double(0)) {
+    returnType(double(1))
+    if(n != 1) print("rnorm_vec only allows n = 1; using n = 1.")
+    smp <- rnorm(n, mean, sd)
+    return(smp)
+  })
+
+code <- nimbleCode({ 
+  beta[1:4] ~ dmnorm(zeros[1:4], omega[1:4, 1:4])
+  sigma ~ dunif(0, 100)  # prior for variance components based on Gelman (2006)
+  linpred[1:n] <- x[1:n, 1:4] %*% beta[1:4]
+  y[1:n] ~ dnorm_vec(linpred[1:n], sigma)
+})
+
+
+## extract data for two predictors and center for better MCMC performance
+# x1 <- X[,1] - mean(X[,1])
+# x2 <- X[,2] - mean(X[,2])
+x1 <- X1[,1]
+x2 <- X1[,2] 
+x3 <- X1[,3]
+x4 <- X1[,4] 
+
+constants <- list(n = n, x=sweep(X1, 2, colMeans(X1)), zeros = rep(0, 4),  omega = 0.0001 * diag(4))
+data <- list(y = y)
+model <- nimbleModel(code, constants = constants, data = data) # build model
+
+cmodel <- compileNimble(model)
+
+mcmc <- buildMCMC(model)
+cmcmc <- compileNimble(mcmc, project = model)
+samples <- runMCMC(cmcmc, niter = 45000,nburnin=5000,thin=20)
+
+plot(samples[,'beta[1]'],type='l')
+ 
