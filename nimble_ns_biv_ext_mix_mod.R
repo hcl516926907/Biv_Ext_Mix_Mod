@@ -145,7 +145,11 @@ dbiextmix <- nimbleFunction(
                  log = logical(0, default = 0)) {
     returnType(double(0))
     
-    lp <-  X %*% beta
+    K <- length(beta[,1])
+    lp <- matrix(0,nrow=dim(X)[1], ncol=D)
+    for (i in 1:D){
+      lp[,i] <- X[,(1+(i-1)*K):(i*K)] %*% beta[,i]
+    }
     thres <- map_thres(lower,upper,lp)
     cond <- (x[,1]>thres[,1]) | (x[,2]>thres[,2])
     n.tail <- sum(cond)
@@ -221,7 +225,7 @@ t1 <- Sys.time()
 #           a.ind=a.ind, lam.ind=lam.ind, lamfix=0, 
 #           sig.ind=sig.ind, gamma.ind=gamma.ind,
 #           log =1)
-dbiextmix(x=Y, theta=theta, beta=beta, X=X,
+dbiextmix(x=Y, theta=theta, beta=beta, X=cbind(X1,X2),
           lower= lower, upper= upper,mu=mu,
           cholesky=cholesky,
           a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
