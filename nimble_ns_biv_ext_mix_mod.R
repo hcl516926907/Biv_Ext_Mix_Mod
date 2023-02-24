@@ -128,10 +128,6 @@ nim_nll_powunif_GPD <- nimbleRcall(function(theta=double(1), x=double(2), u=doub
                                    Rfun = 'nll.powunif.GPD',
                                    returnType = double(0))
 
-nim_nrow <- nimbleRcall(function(x = double(2)){}, 
-                        Rfun = 'nrow',
-                        returnType = double(0))
-
 nim_pmax <- nimbleRcall(function(mat = double(2), eta = double(1)){}, 
                         Rfun = 'R_pmax',
                         returnType = double(2))
@@ -225,6 +221,7 @@ t1 <- Sys.time()
 #           a.ind=a.ind, lam.ind=lam.ind, lamfix=0, 
 #           sig.ind=sig.ind, gamma.ind=gamma.ind,
 #           log =1)
+
 dbiextmix(x=Y, theta=theta, beta=beta, X=cbind(X1,X2),
           lower= lower, upper= upper,mu=mu,
           cholesky=cholesky,
@@ -234,6 +231,14 @@ dbiextmix(x=Y, theta=theta, beta=beta, X=cbind(X1,X2),
 t2 <- Sys.time()
 print(t2-t1)
 
+beta <- cbind(colMeans(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]')]),
+              colMeans(results$samples[,c('beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')]))
+dbiextmix(x=Y, theta=theta, beta=beta, X=cbind(X1,X2),
+          lower= lower, upper= upper,mu=mu,
+          cholesky=cholesky,
+          a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
+          sig.ind=sig.ind, gamma.ind=gamma.ind,
+          log =1)
 
 rbiextmix <- nimbleFunction(
   run = function(n=integer(0), theta=double(1), beta=double(2), X=double(2), 
@@ -283,10 +288,16 @@ BivExtMixcode <- nimbleCode({
   for (i in 1:2)
     mu[i] ~ T(dnorm(0, sd=100),0, lower[i])
   
-  for (i in 1:D)
-    mu_beta[i] <- 0
   for (i in 1:D.pred)
-    beta[i,1:D] ~ dmnorm(mu_beta[1:D], cov=cov_beta[1:D,1:D])
+    mu_beta[i] <- 0
+  for (i in 1:D)
+    beta[1:D.pred,i] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
+  # for (i in 1:D.pred){
+  #   for (j in 1:D){
+  #     beta[i,j] ~ dnorm(0, sd=100)
+  #   }
+  #}
+  
   
   y[1:N,1:D] ~ dbiextmix(theta=theta[1:5], beta=beta[1:D.pred,1:D],X=X[1:N,1:D.pred],
                          lower=lower[1:D], upper=upper[1:D], mu=mu[1:D], 
@@ -295,11 +306,13 @@ BivExtMixcode <- nimbleCode({
                          sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
 })
 
+X1.c <- sweep(X1, 2, colMeans(X1), '-')
+X2.c <- sweep(X2, 2, colMeans(X2), '-')
 BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 2500, 
                                                               D = 2,
                                                               D.pred = 4,
-                                                              cov_beta = 1000*diag(2),
-                                                              X = X,
+                                                              cov_beta = 1000*diag(4),
+                                                              X = cbind(X1.c,X2.c),
                                                               lower = c(6,6),
                                                               upper = c(8,8),
                                                               a.ind = 1,
@@ -315,16 +328,58 @@ cBivExtMixmodel <- compileNimble(BivExtMixmodel)
 
 BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                enableWAIC = TRUE, time=TRUE)
+# BivExtMixconf$removeSamplers(c('beta[1:4, 1]', 'beta[1:4, 2]'))
+# BivExtMixconf$addSampler(target = c('beta[1:4, 1]', 'beta[1:4, 2]'), type = 'AF_slice')
+
 BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 25000,nburnin=5000,thin=10,
-                   summary = TRUE, WAIC = TRUE,setSeed = 1234)
+initsList <- list( beta=matrix(0,ncol=2,nrow=4))
+results <- runMCMC(cBivExtMixMCMC, niter = 10000,nburnin=2500,thin=1,
+                   summary = TRUE, WAIC = TRUE,setSeed = 1234, inits = initsList)
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[,'beta[4, 1]'],type='l',main='traceplot of beta[4,1]')
+plot(results$samples[,'beta[4, 1]'],type='l')
 plot(results$samples[,'mu[1]'],type='l')
 
+pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
+                         'beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')])
+
+plot(results$samples[,c('beta[2, 1]','beta[3, 1]')])
+
+
+
+b0 <- seq(-54,-44, 0.5)
+b1 <- seq(88, 106, 0.5)
+ll <- function(b0,b1){
+  set.seed(1)
+  X <-rnorm(1000,mean=3)
+  X <- X 
+  y <- rnorm(1000, 3+5*X)
+  lp <- b0 + X*b1
+  return(sum(dnorm(y, mean=lp,log=TRUE  )))
+}
+z <- matrix(NA, nrow=length(b0), ncol=length(b1))
+
+# need to double check the xlab and ylab
+
+for (i in 1:length(b0)){
+  for (j in 1:length(b1)){
+    beta.tmp <- 0.1*cbind(c(1,2,3,4),c(-2,-3,4,5))
+    beta.tmp[2,1] <- b0[i]
+    beta.tmp[3,1] <- b1[j]
+    z[i,j] <- dbiextmix(x=Y, theta=theta, beta=beta.tmp, X=cbind(X1.c,X2.c),
+                        lower= lower, upper= upper,mu=mu,
+                        cholesky=cholesky,
+                        a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
+                        sig.ind=sig.ind, gamma.ind=gamma.ind,
+                        log =1)
+    
+  }
+}
+
+
+contour(b0, b1, z, main='contour of beta[1,2] by beta[2,2]',xlab='beta[1,2]',ylab='beta[2,2]')
