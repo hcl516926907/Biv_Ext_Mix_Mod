@@ -364,8 +364,11 @@ ll <- function(b0,b1){
 }
 z <- matrix(NA, nrow=length(b0), ncol=length(b1))
 
+<<<<<<< HEAD
 # need to double check the xlab and ylab
 
+=======
+>>>>>>> c0e03560959a70201a81747a1cff7f03b0d0d46b
 for (i in 1:length(b0)){
   for (j in 1:length(b1)){
     beta.tmp <- 0.1*cbind(c(1,2,3,4),c(-2,-3,4,5))
