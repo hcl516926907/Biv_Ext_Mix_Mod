@@ -369,22 +369,21 @@ save(X.p09, u.x.p09,
 
 #-------------------generate data with non-stationarity in the threshold---------
 set.seed(1234)
-x1 <- rnorm(2500,0,1)
-x2 <- rnorm(2500,0,2)
-x3 <- rnorm(2500,0,3)
-x4 <- rnorm(2500,0,4)
-X1 <- cbind(x1,x2,x3,x4)
-x5 <- rnorm(2500,0,1)
-x6 <- rnorm(2500,0,2)
-x7 <- rnorm(2500,0,3)
-x8 <- rnorm(2500,0,4)
-X2 <- cbind(x5,x6,x7,x8)
-beta1 <- c(1,2,3,4)
-beta2 <- c(-2,-3,4,5)
+N <- 1000
+x1 <- rnorm(N,0,1)
+X1 <- cbind(rep(1,N),x1)
+
+
+x2 <- rnorm(N,0,1)
+X2 <- cbind(rep(1,N), x2)
+
+beta1 <- c(20, 2)
+beta2 <- c(25,-4)
+
 eta <- cbind(X1%*%beta1, X2%*%beta2)
-upper <- c(8,8)
-lower <- c(6,6)
-U <- (lower + sweep(sigmoid(0.1*eta),2, upper-lower, "*"))
+upper <- c(9,9)
+# U <- (lower + sweep(sigmoid(0.05*eta),2, upper-lower, "*"))
+U <- sweep(sigmoid(0.05*eta),2, upper, "*")
 plot(U)
 
 d<-2
@@ -392,7 +391,6 @@ a<-c(1.656,1.656)
 beta<-c(0,0)
 sig<-c(0.571,0.451)
 gamma<-c(0.253,0.035)
-N <- 2500
 p <- 0.05
 
 Y <- matrix(NA, nrow=N,ncol=2)
@@ -403,13 +401,13 @@ sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
 
 t1 <- Sys.time()
 p.vec <- c()
-for (i in 1:2500){
+for (i in 1:N){
     p.vec[i] <- pmvnorm(lower=rep(0,2), upper=U[i,], mean=mu, sigma=sigma, keepAttr = F)
 }
 t2 <- Sys.time()
 print(t2-t1)
 
-rv.uni <- runif(2500)
+rv.uni <- runif(N)
 Y.bulk <- c()
 Y.tail <- c()
 Y.tail.raw <- c()
