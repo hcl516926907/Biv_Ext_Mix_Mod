@@ -377,13 +377,15 @@ X1 <- cbind(rep(1,N),x1)
 x2 <- rnorm(N,0,1)
 X2 <- cbind(rep(1,N), x2)
 
-beta1 <- c(20, 2)
-beta2 <- c(25,-4)
+beta1 <- c(0.1, 0.2)
+beta2 <- c(0.3, -0.4)
 
 eta <- cbind(X1%*%beta1, X2%*%beta2)
-upper <- c(9,9)
-# U <- (lower + sweep(sigmoid(0.05*eta),2, upper-lower, "*"))
-U <- sweep(sigmoid(0.05*eta),2, upper, "*")
+lower <- c(6,6)
+upper <- c(8,8)
+U <- (lower + sweep(sigmoid(eta),2, upper-lower, "*"))
+# U <- sweep(sigmoid(eta),2, upper, "*")
+# U <- sweep(pexp(exp(eta)),2, upper, "*")
 plot(U)
 
 d<-2
