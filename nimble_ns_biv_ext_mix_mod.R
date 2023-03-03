@@ -8,7 +8,6 @@ library(Rcpp)
 library(rbenchmark)
 
 
-
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
 load(file.path(dir.in,'simulation_data_non_stationary.RData'))
@@ -144,7 +143,7 @@ dbiextmix <- nimbleFunction(
     K <- length(beta[,1])
     lp <- matrix(0,nrow=dim(X)[1], ncol=D)
     for (i in 1:D){
-      lp[,i] <- X[,(1+(i-1)*K):(i*K)] %*% beta[,i]
+      lp[,i] <- X[,(1+(i-1)*K):(i*K)] %*% matrix(beta[,i],ncol=1)
     }
     thres <- map_thres(lower,upper,lp)
     cond <- (x[,1]>thres[,1]) | (x[,2]>thres[,2])
@@ -155,7 +154,7 @@ dbiextmix <- nimbleFunction(
     
     thres.tail <- thres[cond,]
     log.sum <- mix_prob_sum(thres.tail, mu, cholesky)
-
+    
     sig <- theta[sig.ind]
     gamma <- theta[gamma.ind]
     eta <- -sig/gamma
@@ -164,18 +163,23 @@ dbiextmix <- nimbleFunction(
     dbulk <- 0
     
     if (n.tail>0){
-      # max of y.tail and endpoint
-      y.tail.max <- nim_pmax(y.tail,eta+10^-10)
-      llt <- -nim_nll_powunif_GPD(x=y.tail.max, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
-                                  lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
-                                  lamfix=lamfix, balthresh=FALSE, 
-                                  marg.scale.ind=1:2, marg.shape.ind=1:2)
-      if (log){
-        dtail <- llt
-      }else{
-        dtail <- exp(llt)
+      y.min <- eta
+      for (i in 1:D){
+        y.min[i] <- min(y.tail[,i])
       }
-      
+      if (all(y.min>eta)){
+        llt <- -nim_nll_powunif_GPD(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
+                                    lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
+                                    lamfix=lamfix, balthresh=FALSE, 
+                                    marg.scale.ind=1:2, marg.shape.ind=1:2)
+        if (log){
+          dtail <- llt
+        }else{
+          dtail <- exp(llt)
+        }
+      }else{
+        if (log) dtail <- -10^10
+      }
     }
     
     if (n.bulk>0){
@@ -193,9 +197,8 @@ dbiextmix <- nimbleFunction(
 
 
 
-
-
-
+X <- cbind(X1,X2)
+# X <- matrix(1,nrow=1000,ncol=4)
 theta <- c(1.656, 0.571, 0.451, 0.253, 0.035)
 a.ind <- c(1)
 lam.ind <- c(1)
@@ -203,7 +206,7 @@ sig.ind <- c(2,3)
 gamma.ind <- c(4,5)
 marg.scale.ind <- c(1,2)
 marg.shape.ind <- c(1,2)
-beta <- 0.1*cbind(c(1,2,3,4),c(-2,-3,4,5))
+beta <- cbind(c(0.1,0.2),c(0.3,-0.4))
 lower <- 6
 upper <- 8
 mu <- c(5,5.41)
@@ -216,24 +219,54 @@ log <- TRUE
 lamfix=FALSE
 
 t1 <- Sys.time()
-# dbiextmix(x=Y, theta=theta, thres = c(5.5,5.5),mu=mu, 
+# dbiextmix(x=Y, theta=theta, thres = c(7.049958,6.851115),mu=mu,
 #           cholesky=cholesky,
-#           a.ind=a.ind, lam.ind=lam.ind, lamfix=0, 
+#           a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
 #           sig.ind=sig.ind, gamma.ind=gamma.ind,
 #           log =1)
 
-dbiextmix(x=Y, theta=theta, beta=beta, X=cbind(X1,X2),
+dbiextmix(x=Y, theta=theta, beta=beta, X=X,
           lower= lower, upper= upper,mu=mu,
           cholesky=cholesky,
           a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
           sig.ind=sig.ind, gamma.ind=gamma.ind,
           log =1)
+
+# -2959.791
 t2 <- Sys.time()
 print(t2-t1)
 
-beta <- cbind(colMeans(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]')]),
-              colMeans(results$samples[,c('beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')]))
-dbiextmix(x=Y, theta=theta, beta=beta, X=cbind(X1,X2),
+burnin <- 1000
+n.itr <- nrow(results$samples)
+# beta <- cbind(colMeans(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]')]),
+#               colMeans(results$samples[,c('beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')]))
+beta <- cbind(colMeans(results$samples[burnin:n.itr,c('beta[1, 1]','beta[2, 1]')]),
+              colMeans(results$samples[burnin:n.itr,c('beta[1, 2]','beta[2, 2]')]))
+
+beta[1,1] <- 10
+beta[2,1] <- 3
+# beta[1,2] <- 81.1322
+#problematic beta 
+# [,1]    [,2]
+# beta[1, 1] -86.3079 81.1322
+# beta[2, 1]   0.0000  0.0000
+
+theta <- colMeans(results$samples[burnin:n.itr,c('theta[1]','theta[2]','theta[3]',
+                                                 'theta[4]','theta[5]')])
+
+# theta <- c(17.237010676, 0.902869762, 0.001457657, 0.021203881, 0.980473508 )
+#problematic theta 
+# theta[1]     theta[2]     theta[3]     theta[4]     theta[5] 
+# 17.237010676  0.902869762  0.001457657  0.021203881  0.980473508 
+
+#problematic mu
+mu <- colMeans(results$samples[burnin:n.itr,c('mu[1]','mu[2]')])
+# mu <- c(5.131380 ,5.347119 )
+# mu[1]    mu[2] 
+# 5.131380 5.347119 
+
+
+dbiextmix(x=Y, theta=theta, beta=beta, X=X,
           lower= lower, upper= upper,mu=mu,
           cholesky=cholesky,
           a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
@@ -290,13 +323,9 @@ BivExtMixcode <- nimbleCode({
   
   for (i in 1:D.pred)
     mu_beta[i] <- 0
-  for (i in 1:D)
+  for (i in 1:D){
     beta[1:D.pred,i] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
-  # for (i in 1:D.pred){
-  #   for (j in 1:D){
-  #     beta[i,j] ~ dnorm(0, sd=100)
-  #   }
-  #}
+  }
   
   
   y[1:N,1:D] ~ dbiextmix(theta=theta[1:5], beta=beta[1:D.pred,1:D],X=X[1:N,1:D.pred],
@@ -306,13 +335,14 @@ BivExtMixcode <- nimbleCode({
                          sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
 })
 
-X1.c <- sweep(X1, 2, colMeans(X1), '-')
-X2.c <- sweep(X2, 2, colMeans(X2), '-')
-BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 2500, 
+X1.c <- sweep(X1, 2, c(0,mean(X1[,2])), '-')
+X2.c <- sweep(X2, 2, c(0,mean(X2[,2])), '-')
+BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 1000, 
                                                               D = 2,
-                                                              D.pred = 4,
-                                                              cov_beta = 1000*diag(4),
+                                                              D.pred = 2,
+                                                              cov_beta = 25*diag(2),
                                                               X = cbind(X1.c,X2.c),
+                                                              # X = matrix(1,nrow=1000,ncol=4),
                                                               lower = c(6,6),
                                                               upper = c(8,8),
                                                               a.ind = 1,
@@ -336,40 +366,41 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-initsList <- list( beta=matrix(0,ncol=2,nrow=4))
-results <- runMCMC(cBivExtMixMCMC, niter = 10000,nburnin=2500,thin=1,
+initsList <- list( beta=matrix(0,ncol=2,nrow=2))
+results <- runMCMC(cBivExtMixMCMC, niter = 5000,nburnin=0,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1234, inits = initsList)
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[,'beta[4, 1]'],type='l')
-plot(results$samples[,'mu[1]'],type='l')
+plot(results$samples[,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
+plot(results$samples[,'theta[1]'],type='l')
 
-pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
-                         'beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')])
-
+# pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
+#                          'beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')])
+pairs(results$samples[1000:5000,c('beta[1, 1]','beta[2, 1]',
+                         'beta[1, 2]','beta[2, 2]')])
 plot(results$samples[,c('beta[2, 1]','beta[3, 1]')])
 
 
 
-b0 <- seq(-54,-44, 0.5)
-b1 <- seq(88, 106, 0.5)
-ll <- function(b0,b1){
-  set.seed(1)
-  X <-rnorm(1000,mean=3)
-  X <- X 
-  y <- rnorm(1000, 3+5*X)
-  lp <- b0 + X*b1
-  return(sum(dnorm(y, mean=lp,log=TRUE  )))
-}
+b0 <- seq(-5,10, 0.5)
+b1 <- seq(-5,10, 0.5)
+# ll <- function(b0,b1){
+#   set.seed(1)
+#   X <-rnorm(1000,mean=3)
+#   X <- X 
+#   y <- rnorm(1000, 3+5*X)
+#   lp <- b0 + X*b1
+#   return(sum(dnorm(y, mean=lp,log=TRUE  )))
+# }
 z <- matrix(NA, nrow=length(b0), ncol=length(b1))
 
 # need to double check the xlab and ylab
 for (i in 1:length(b0)){
   for (j in 1:length(b1)){
-    beta.tmp <- 0.1*cbind(c(1,2,3,4),c(-2,-3,4,5))
-    beta.tmp[2,1] <- b0[i]
-    beta.tmp[3,1] <- b1[j]
+    beta.tmp <- cbind(c(2,2),c(5,-4))
+    beta.tmp[1,1] <- b0[i]
+    beta.tmp[2,1] <- b1[j]
     z[i,j] <- dbiextmix(x=Y, theta=theta, beta=beta.tmp, X=cbind(X1.c,X2.c),
                         lower= lower, upper= upper,mu=mu,
                         cholesky=cholesky,
@@ -381,4 +412,80 @@ for (i in 1:length(b0)){
 }
 
 
-contour(b0, b1, z, main='contour of beta[1,2] by beta[2,2]',xlab='beta[1,2]',ylab='beta[2,2]')
+contour(b0, b1, z, main='contour of beta[1,1] by beta[2,1]',xlab='beta[1,1]',ylab='beta[2,1]')
+
+
+#-----------------------------gpd debug
+x <- y.tail.max
+# x <- y.tail
+u <- min(y.tail)-0.01
+nll.powunif.GPD<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
+{
+  d<-dim(x)[2]
+  a<-theta[a.ind]
+  if(length(a)==1)
+  {
+    a<-rep(a,d)
+  }
+  
+  if(lamfix){lam<-rep(1,d)
+  }else{
+    lam<-c(theta[lam.ind],1)
+  }
+  
+  if(balthresh){
+    lam<-1/(1+a)
+  }
+  
+  sig<-theta[sig.ind]
+  gamma<-theta[gamma.ind]
+  
+  sig<-sig[marg.scale.ind]
+  gamma<-gamma[marg.shape.ind]
+  
+  rej<-NULL
+  for(j in 1:d)
+  {
+    rej[j]<-gamma[j]<0 && any(x[,j]>-sig[j]/gamma[j])
+  }
+  
+  if(any(lam<0.01)||any(a<=0.01)||any(sig<=0.001)||any(rej)){return(10e10)}
+  
+  uc<-apply(x,1,comp.gt,u=u)
+  
+  x.uc<-x[uc,]
+  x.pc<-x[!uc,]
+  
+  L<-apply(x.uc,1,fX.powunif,a=a,lam=lam,sig=sig,gamma=gamma)
+  nll.uc<--sum(log(L))
+  
+  if(sum(!uc)>0){
+    L2<-apply(x.pc,1,fX.powunif.cens,a=a,lam=lam,u=u,sig=sig,gamma=gamma)
+    nll.pc<--sum(log(L2))
+  }else{nll.pc<-0}
+  nll<-nll.uc+nll.pc
+  
+  return(nll)
+}
+
+fX.powunif<-function(x,lam,a,sig,gamma)
+{
+  y<-BCi(x=x,gamma=gamma,sig=sig)
+  J<-Jac(x=x,gamma=gamma,sig=sig)
+  return(fY.powunif(y=y,a=a,lam=lam)*J)
+}
+
+y<-BCi(x=x[1,],gamma=gamma,sig=sig)
+J<-Jac(x=x[1,],gamma=gamma,sig=sig)
+
+fY.powunif<-function(y,lam,a)
+{
+  EM<-EM.pu(a=a,lam=lam)
+  b<-1/a
+  num<- prod(lam*b*(lam*y)^(b-1))
+  den<-EM*((1+sum(b))*max(lam*y)^(sum(b)+1))
+  return(num/den)
+}
+
+nll.powunif.GPD.1(theta,y.tail,u=eta+0.0001,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
+  
