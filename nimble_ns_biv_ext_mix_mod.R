@@ -372,53 +372,91 @@ results <- runMCMC(cBivExtMixMCMC, niter = 5000,nburnin=0,thin=1,
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
+plot(results$samples[2000:5000,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
 plot(results$samples[,'theta[1]'],type='l')
 
 # pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
 #                          'beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')])
-pairs(results$samples[1000:5000,c('beta[1, 1]','beta[2, 1]',
+pairs(results$samples[2000:5000,c('beta[1, 1]','beta[2, 1]',
                          'beta[1, 2]','beta[2, 2]')])
 plot(results$samples[,c('beta[2, 1]','beta[3, 1]')])
 
 
 
-b0 <- seq(-5,10, 0.5)
-b1 <- seq(-5,10, 0.5)
-# ll <- function(b0,b1){
-#   set.seed(1)
-#   X <-rnorm(1000,mean=3)
-#   X <- X 
-#   y <- rnorm(1000, 3+5*X)
-#   lp <- b0 + X*b1
-#   return(sum(dnorm(y, mean=lp,log=TRUE  )))
-# }
-z <- matrix(NA, nrow=length(b0), ncol=length(b1))
+# b0 <- seq(-5,10, 0.5)
+# b1 <- seq(-5,10, 0.5)
+gamma1 <- seq(0.0001,1,0.0001)
+gamma2 <- seq(0001,1,0.0001)
+sig1 <- seq(0.0001,1,0.0001)
+sig2 <- seq(0.0001,1,0.0001)
+eta <- matrix(NA, nrow=length(sig1), ncol=length(gamma1))
+ymin <- min(y.tail[,1])
+i.ind <- c()
+j.ind <- c()
+for (i in 1:length(sig1)){
+  for (j in 1:length(gamma1)){
+    theta.tmp <- theta
+    theta.tmp[2] <- sig1[i]
+    theta.tmp[4] <- gamma1[j]
+    eta[i,j] <-  -sig1[i]/gamma1[j]
+    if (((ymin-eta[i,j])>0)&((ymin-eta[i,j])<0.0001)){
+      i.ind <- c(i.ind, i)
+      j.ind <- c(j.ind, j)
+    }
+  }
+}
 
+
+z.seq <- c()
+
+theta.tmp <- c(17.237010676, 0.902869762, 0.001457657 ,0.021203881, 0.980473508  )
 # need to double check the xlab and ylab
-for (i in 1:length(b0)){
-  for (j in 1:length(b1)){
-    beta.tmp <- cbind(c(2,2),c(5,-4))
-    beta.tmp[1,1] <- b0[i]
-    beta.tmp[2,1] <- b1[j]
-    z[i,j] <- dbiextmix(x=Y, theta=theta, beta=beta.tmp, X=cbind(X1.c,X2.c),
+for (k in 1:1209){
+    theta.tmp <- theta
+    theta.tmp[2] <- sig1[i.ind[k]]
+    theta.tmp[4] <- gamma1[j.ind[k]]
+    z.tmp <- dbiextmix(x=Y, theta=theta.tmp, beta=beta, X=X,
                         lower= lower, upper= upper,mu=mu,
                         cholesky=cholesky,
                         a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
                         sig.ind=sig.ind, gamma.ind=gamma.ind,
                         log =1)
-    
+    z.seq <- c(z.seq, z.tmp)
+}
+
+which(z.seq< -100000)
+
+x.axis <- seq(-3,5, 0.01)
+y.axis <- seq(-3,5,0.01)
+u <- min(c(x.axis,y.axis))-0.01
+z <- matrix(NA,nrow=length(x.axis), ncol=length(y.axis))
+for (i in 1:length(x.axis)){
+  for (j in 1:length(y.axis)){
+    if ((x.axis[i]>0)|(y.axis[j]>0)){
+      y.obs <- rbind(c(x.axis[i],y.axis[j]),c(x.axis[i],y.axis[j]))
+      # y.obs.single <- c(-theta[2]/theta[4]+43,-theta[3]/theta[5])+0.001
+      # y.obs <- rbind(y.obs.single,y.obs.single)
+      
+      z[i,j] <- -nll.powunif.GPD(theta,x=y.obs,u=u,a.ind,lam.ind,sig.ind,gamma.ind, 
+                                lamfix=FALSE, balthresh=FALSE, 
+                                marg.scale.ind,marg.shape.ind)/2
+    }
+
   }
 }
 
-
-contour(b0, b1, z, main='contour of beta[1,1] by beta[2,1]',xlab='beta[1,1]',ylab='beta[2,1]')
-
+contour(x.axis, y.axis, z, main='contour of bivariate GP density',xlab='x1',ylab='x2')
+abline(h=eta[2],col='red')
 
 #-----------------------------gpd debug
-x <- y.tail.max
 # x <- y.tail
+theta <- c(17, 0.902869762, 0.001457657 ,0.021203881, 0.980473508 )
+eta <- c(-theta[2]/theta[4], -theta[3]/theta[5])
+y.tail.max <- nim_pmax(rbind(y.tail),eta+10^-7)
+x <- y.tail.max
+
 u <- min(y.tail)-0.01
+balthresh <- FALSE
 nll.powunif.GPD<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
 {
   d<-dim(x)[2]
