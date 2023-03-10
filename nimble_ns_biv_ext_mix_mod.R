@@ -366,164 +366,57 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-initsList <- list( beta=matrix(0,ncol=2,nrow=2))
-results <- runMCMC(cBivExtMixMCMC, niter = 5000,nburnin=0,thin=1,
-                   summary = TRUE, WAIC = TRUE,setSeed = 1234, inits = initsList)
+results <- runMCMC(cBivExtMixMCMC, niter = 10000,nburnin=5000,thin=1,
+                   summary = TRUE, WAIC = TRUE,setSeed = 1234)
 t2 <- Sys.time()
 print(t2-t1)
 
 plot(results$samples[2000:5000,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
-plot(results$samples[,'theta[1]'],type='l')
+plot(results$samples[,'beta[1, 2]'],type='l')
 
 # pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
 #                          'beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')])
-pairs(results$samples[2000:5000,c('beta[1, 1]','beta[2, 1]',
+pairs(results$samples[,c('beta[1, 1]','beta[2, 1]',
                          'beta[1, 2]','beta[2, 2]')])
 plot(results$samples[,c('beta[2, 1]','beta[3, 1]')])
 
-
-
-# b0 <- seq(-5,10, 0.5)
-# b1 <- seq(-5,10, 0.5)
-gamma1 <- seq(0.0001,1,0.0001)
-gamma2 <- seq(0001,1,0.0001)
-sig1 <- seq(0.0001,1,0.0001)
-sig2 <- seq(0.0001,1,0.0001)
-eta <- matrix(NA, nrow=length(sig1), ncol=length(gamma1))
-ymin <- min(y.tail[,1])
-i.ind <- c()
-j.ind <- c()
-for (i in 1:length(sig1)){
-  for (j in 1:length(gamma1)){
-    theta.tmp <- theta
-    theta.tmp[2] <- sig1[i]
-    theta.tmp[4] <- gamma1[j]
-    eta[i,j] <-  -sig1[i]/gamma1[j]
-    if (((ymin-eta[i,j])>0)&((ymin-eta[i,j])<0.0001)){
-      i.ind <- c(i.ind, i)
-      j.ind <- c(j.ind, j)
-    }
+X <- cbind(X1.c,X2.c)
+lp.samples <- list()
+for (i in 1:nrow(results$samples)){
+  beta.samples <- results$samples[i,c('beta[1, 1]','beta[2, 1]',
+                                   'beta[1, 2]','beta[2, 2]')] 
+  lp.tmp <- matrix(NA, nrow=nrow(X), ncol=2)
+  for (j in 1:D){
+    lp.tmp[,j] <- X[,(1+(j-1)*K):(j*K)] %*% matrix(beta.samples[(1+(j-1)*K):(j*K)],ncol=1)
   }
+  lp.samples[[i]] <- lp.tmp
 }
 
+thres.samples <-  lapply(lp.samples,map_thres,lower=lower,upper=upper)
 
-z.seq <- c()
+dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod'
 
-theta.tmp <- c(17.237010676, 0.902869762, 0.001457657 ,0.021203881, 0.980473508  )
-# need to double check the xlab and ylab
-for (k in 1:1209){
-    theta.tmp <- theta
-    theta.tmp[2] <- sig1[i.ind[k]]
-    theta.tmp[4] <- gamma1[j.ind[k]]
-    z.tmp <- dbiextmix(x=Y, theta=theta.tmp, beta=beta, X=X,
-                        lower= lower, upper= upper,mu=mu,
-                        cholesky=cholesky,
-                        a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
-                        sig.ind=sig.ind, gamma.ind=gamma.ind,
-                        log =1)
-    z.seq <- c(z.seq, z.tmp)
-}
+save(results, thres.samples, file=file.path(dir.out,'sp_rw_l6_l6_u8_u8.RData'))
 
-which(z.seq< -100000)
-
-x.axis <- seq(-3,5, 0.01)
-y.axis <- seq(-3,5,0.01)
+x.axis <- seq(-30,10, 1)
+y.axis <- seq(-30,10, 1)
 u <- min(c(x.axis,y.axis))-0.01
 z <- matrix(NA,nrow=length(x.axis), ncol=length(y.axis))
 for (i in 1:length(x.axis)){
   for (j in 1:length(y.axis)){
-    if ((x.axis[i]>0)|(y.axis[j]>0)){
-      y.obs <- rbind(c(x.axis[i],y.axis[j]),c(x.axis[i],y.axis[j]))
-      # y.obs.single <- c(-theta[2]/theta[4]+43,-theta[3]/theta[5])+0.001
-      # y.obs <- rbind(y.obs.single,y.obs.single)
+      beta.tmp <- beta
+      beta.tmp[1,1] <- x.axis[i]
+      beta.tmp[2,1] <- y.axis[j]
       
-      z[i,j] <- -nll.powunif.GPD(theta,x=y.obs,u=u,a.ind,lam.ind,sig.ind,gamma.ind, 
-                                lamfix=FALSE, balthresh=FALSE, 
-                                marg.scale.ind,marg.shape.ind)/2
+      z[i,j] <- dbiextmix(x=Y, theta=theta, beta=beta.tmp, X=cbind(X1.c,X2.c),
+                          lower= lower, upper= upper,mu=mu,
+                          cholesky=cholesky,
+                          a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
+                          sig.ind=sig.ind, gamma.ind=gamma.ind,
+                          log =1)
     }
 
-  }
 }
 
+z[which(z < -100000)] <- -5000
 contour(x.axis, y.axis, z, main='contour of bivariate GP density',xlab='x1',ylab='x2')
-abline(h=eta[2],col='red')
-
-#-----------------------------gpd debug
-# x <- y.tail
-theta <- c(17, 0.902869762, 0.001457657 ,0.021203881, 0.980473508 )
-eta <- c(-theta[2]/theta[4], -theta[3]/theta[5])
-y.tail.max <- nim_pmax(rbind(y.tail),eta+10^-7)
-x <- y.tail.max
-
-u <- min(y.tail)-0.01
-balthresh <- FALSE
-nll.powunif.GPD<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
-{
-  d<-dim(x)[2]
-  a<-theta[a.ind]
-  if(length(a)==1)
-  {
-    a<-rep(a,d)
-  }
-  
-  if(lamfix){lam<-rep(1,d)
-  }else{
-    lam<-c(theta[lam.ind],1)
-  }
-  
-  if(balthresh){
-    lam<-1/(1+a)
-  }
-  
-  sig<-theta[sig.ind]
-  gamma<-theta[gamma.ind]
-  
-  sig<-sig[marg.scale.ind]
-  gamma<-gamma[marg.shape.ind]
-  
-  rej<-NULL
-  for(j in 1:d)
-  {
-    rej[j]<-gamma[j]<0 && any(x[,j]>-sig[j]/gamma[j])
-  }
-  
-  if(any(lam<0.01)||any(a<=0.01)||any(sig<=0.001)||any(rej)){return(10e10)}
-  
-  uc<-apply(x,1,comp.gt,u=u)
-  
-  x.uc<-x[uc,]
-  x.pc<-x[!uc,]
-  
-  L<-apply(x.uc,1,fX.powunif,a=a,lam=lam,sig=sig,gamma=gamma)
-  nll.uc<--sum(log(L))
-  
-  if(sum(!uc)>0){
-    L2<-apply(x.pc,1,fX.powunif.cens,a=a,lam=lam,u=u,sig=sig,gamma=gamma)
-    nll.pc<--sum(log(L2))
-  }else{nll.pc<-0}
-  nll<-nll.uc+nll.pc
-  
-  return(nll)
-}
-
-fX.powunif<-function(x,lam,a,sig,gamma)
-{
-  y<-BCi(x=x,gamma=gamma,sig=sig)
-  J<-Jac(x=x,gamma=gamma,sig=sig)
-  return(fY.powunif(y=y,a=a,lam=lam)*J)
-}
-
-y<-BCi(x=x[1,],gamma=gamma,sig=sig)
-J<-Jac(x=x[1,],gamma=gamma,sig=sig)
-
-fY.powunif<-function(y,lam,a)
-{
-  EM<-EM.pu(a=a,lam=lam)
-  b<-1/a
-  num<- prod(lam*b*(lam*y)^(b-1))
-  den<-EM*((1+sum(b))*max(lam*y)^(sum(b)+1))
-  return(num/den)
-}
-
-nll.powunif.GPD.1(theta,y.tail,u=eta+0.0001,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
-  
