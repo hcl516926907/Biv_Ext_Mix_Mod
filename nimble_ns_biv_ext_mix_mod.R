@@ -76,18 +76,18 @@ NumericVector R_mix_prob_3(NumericMatrix UB, NumericVector mu, NumericMatrix M){
 
 Rcpp::cppFunction(code = src)
 
-t0 <- Sys.time()
-system.time(R_mix_prob(thres, mu, cholesky))
-t1 <- Sys.time()
-system.time(R_mix_prob_1(thres, mu, cholesky))
-t2 <- Sys.time()
-system.time(R_mix_prob_2(thres, mu, cholesky))
-t3 <- Sys.time()
-system.time(R_mix_prob_3(thres, mu, t(cholesky) %*% cholesky))
-t4 <- Sys.time()
-print(c(t1-t0,t2-t1,t3-t2,t4-t3))
-rbenchmark::benchmark(R_mix_prob(thres, mu, cholesky),R_mix_prob_1(thres, mu, cholesky),
-                      R_mix_prob_2(thres, mu, cholesky),R_mix_prob_3(thres, mu, t(cholesky) %*% cholesky))
+# t0 <- Sys.time()
+# system.time(R_mix_prob(thres, mu, cholesky))
+# t1 <- Sys.time()
+# system.time(R_mix_prob_1(thres, mu, cholesky))
+# t2 <- Sys.time()
+# system.time(R_mix_prob_2(thres, mu, cholesky))
+# t3 <- Sys.time()
+# system.time(R_mix_prob_3(thres, mu, t(cholesky) %*% cholesky))
+# t4 <- Sys.time()
+# print(c(t1-t0,t2-t1,t3-t2,t4-t3))
+# rbenchmark::benchmark(R_mix_prob(thres, mu, cholesky),R_mix_prob_1(thres, mu, cholesky),
+#                       R_mix_prob_2(thres, mu, cholesky),R_mix_prob_3(thres, mu, t(cholesky) %*% cholesky))
 
 # system.time(R_mix_prob_sg(thres[1,], mu, cholesky))
 
@@ -343,7 +343,7 @@ BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 1000,
                                                               cov_beta = 25*diag(2),
                                                               X = cbind(X1.c,X2.c),
                                                               # X = matrix(1,nrow=1000,ncol=4),
-                                                              lower = c(6,6),
+                                                              lower = c(5.5,5.7),
                                                               upper = c(8,8),
                                                               a.ind = 1,
                                                               lam.ind = 2,
@@ -381,6 +381,7 @@ pairs(results$samples[,c('beta[1, 1]','beta[2, 1]',
 plot(results$samples[,c('beta[2, 1]','beta[3, 1]')])
 
 X <- cbind(X1.c,X2.c)
+K <- length(beta[,1])
 lp.samples <- list()
 for (i in 1:nrow(results$samples)){
   beta.samples <- results$samples[i,c('beta[1, 1]','beta[2, 1]',
@@ -396,7 +397,7 @@ thres.samples <-  lapply(lp.samples,map_thres,lower=lower,upper=upper)
 
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod'
 
-save(results, thres.samples, file=file.path(dir.out,'sp_rw_l6_l6_u8_u8.RData'))
+save(results, thres.samples, file=file.path(dir.out,'sp_rw_l5dot5_l5dot7_u8_u8.RData'))
 
 x.axis <- seq(-30,10, 1)
 y.axis <- seq(-30,10, 1)
