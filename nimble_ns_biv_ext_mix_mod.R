@@ -371,7 +371,7 @@ results <- runMCMC(cBivExtMixMCMC, niter = 10000,nburnin=5000,thin=1,
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[2000:5000,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
+plot(results$samples[,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
 plot(results$samples[,'beta[1, 2]'],type='l')
 
 # pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
@@ -399,17 +399,36 @@ dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimbl
 
 save(results, thres.samples, file=file.path(dir.out,'sp_rw_l5dot5_l5dot7_u8_u8.RData'))
 
-x.axis <- seq(-30,10, 1)
-y.axis <- seq(-30,10, 1)
+library(ggplot2)
+load(file.path(dir.out,'sp_rw_l5dot5_l5dot7_u8_u8.RData'))
+thres.sp.5.5_5.7 <- thres.samples
+load(file.path(dir.out,'sp_rw_l6_l6_u8_u8.RData'))
+thres.sp.6_6 <- thres.samples
+
+
+obs.idx <- 650
+df1 <- as.data.frame(thres.sp.5.5_5.7[[obs.idx]])
+df1$catg <- '5.5_5.7'
+df2 <- as.data.frame(thres.sp.6_6[[obs.idx]])
+df2$catg <- '6_6'
+df <- rbind(df1, df2)
+p <- ggplot(df, mapping = aes(x = V1, y = V2)) 
+p + geom_density2d(aes(color = catg)) + labs(title=paste('observation ',obs.idx))
+
+p2 <- ggplot(as.data.frame(thres.sp.6_6[[1]]), mapping = aes(x = V1, y = V2)) 
+p2 + geom_density2d()
+
+x.axis <- seq(0, 0.6, 0.02)
+y.axis <- seq(-0.5,0.1, 0.02)
 u <- min(c(x.axis,y.axis))-0.01
 z <- matrix(NA,nrow=length(x.axis), ncol=length(y.axis))
 for (i in 1:length(x.axis)){
   for (j in 1:length(y.axis)){
       beta.tmp <- beta
-      beta.tmp[1,1] <- x.axis[i]
-      beta.tmp[2,1] <- y.axis[j]
+      beta.tmp[1,2] <- x.axis[i]
+      beta.tmp[2,2] <- y.axis[j]
       
-      z[i,j] <- dbiextmix(x=Y, theta=theta, beta=beta.tmp, X=cbind(X1.c,X2.c),
+      z[i,j] <- dbiextmix(x=Y, theta=theta, beta=beta.tmp, X=cbind(X1,X2),
                           lower= lower, upper= upper,mu=mu,
                           cholesky=cholesky,
                           a.ind=a.ind, lam.ind=lam.ind, lamfix=0,
@@ -418,6 +437,6 @@ for (i in 1:length(x.axis)){
     }
 
 }
-
-z[which(z < -100000)] <- -5000
-contour(x.axis, y.axis, z, main='contour of bivariate GP density',xlab='x1',ylab='x2')
+z.new <- z
+z.new[which(z.new < -7400)] <- -7400
+contour(x.axis, y.axis, z.new, main='contour of bivariate GP density',xlab='x1',ylab='x2')
