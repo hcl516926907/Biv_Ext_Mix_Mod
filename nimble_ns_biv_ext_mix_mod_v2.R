@@ -3,7 +3,6 @@ source("KRSW/CommonFunctions.r")
 library(nimble, warn.conflicts = F)
 library(mvtnorm)
 library(parallel)
-library(rbenchmark)
 
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
@@ -198,10 +197,6 @@ dbiextmix <- nimbleFunction(
         for (i in 1:n.tail){
           for (j in 1:D){
             alpha.inv[j] <- exp(inprod(X.tail[i,(1+(j-1)*K):(j*K)], beta.a[,D]))
-            if (is.nan(alpha.inv[j])){
-              print(X.tail[i,(1+(j-1)*K):(j*K)])
-              print(beta.a[,D])
-            }
             if (j<D){
               lam[j] <- exp(inprod(X.tail[i,(1+(j-1)*K):(j*K)] ,beta.b[,D]))
             }else{
@@ -251,16 +246,20 @@ test1 <- function(){
 
 X <- cbind(X1,X2)
 # X <- matrix(1,nrow=1000,ncol=4)
-para.mg <- c(0.571, 0.451, 0.253, 0.035)
-beta.a <- cbind(c(0.5, 0.2),c(0.5, -0.4))
-beta.b <- cbind(c(0.25,-0.25),c(0,0))
+# para.mg <- c(0.571, 0.451, 0.253, 0.035)
+para.mg <- c(9.3556,2.02373,0.820941,0.456565)
+# beta.a <- cbind(c(0.5, 0.2),c(0.5, -0.4))
+beta.a <- cbind(c(15.1993,-12.5238),c(-0.578615,0.323246))
+# beta.b <- cbind(c(0.25,-0.25),c(0,0))
+beta.b <- cbind(c(6.05148,-1.62846),c(1,1))
 a.ind <- c(1,2)
 lam.ind <- c(3)
 sig.ind <- c(4,5)
 gamma.ind <- c(6,7)
 marg.scale.ind <- c(1,2)
 marg.shape.ind <- c(1,2)
-thres <- u.x
+# thres <- u.x
+thres <- c(9.44768,7.22659)
 mu <- c(5,5.41)
 rho=0.5
 sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
@@ -356,7 +355,7 @@ BivExtMixcode <- nimbleCode({
   
   y[1:N,1:D] ~ dbiextmix(para.mg=para.mg[1:4], beta.a=beta.a[1:D.pred,1:D],
                          beta.b=beta.b[1:D.pred,1:D], thres=thres[1:2],
-                         X=X[1:N,1:D.pred], mu=mu[1:D], 
+                         X=X[1:N,1:(D*D.pred)], mu=mu[1:D], 
                          cholesky=U[1:D,1:D], D=D,
                          a.ind=a.ind[1:D], lam.ind=lam.ind, lamfix=lamfix, 
                          sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
@@ -387,7 +386,7 @@ BivExtMixconf <- configureMCMC(BivExtMixmodel,
 # BivExtMixconf$addSampler(target = c('beta[1:4, 1]', 'beta[1:4, 2]'), type = 'AF_slice')
 
 BivExtMixMCMC <- buildMCMC(BivExtMixconf)
-
+# BivExtMixMCMC$run(1)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
@@ -396,8 +395,8 @@ results <- runMCMC(cBivExtMixMCMC, niter = 250,nburnin=0,thin=1,
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[,'beta[2, 2]'],type='l', main='Traceplot of beta[2, 2]')
-plot(results$samples[,'beta[1, 2]'],type='l')
+plot(results$samples[,'beta.b[1, 1]'],type='l')
+plot(results$samples[,'thres[2]'],type='l')
 
 # pairs(results$samples[,c('beta[1, 1]','beta[2, 1]','beta[3, 1]','beta[4, 1]',
 #                          'beta[1, 2]','beta[2, 2]','beta[3, 2]','beta[4, 2]')])
