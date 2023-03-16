@@ -433,7 +433,7 @@ plot(Y)
 save(X1,X2, Y, U,
      file=file.path(dir.out,'simulation_data_non_stationary.RData'))
 
-#------------------------------Rcpp--------------------------------------
+#------------------------------Rcpp-------------------------------------
 src1 <-
 '
 double rcpp_sum(NumericVector v){
@@ -445,8 +445,8 @@ double rcpp_sum(NumericVector v){
   NumericVector d = {1,2,3};
   Rcout << d;
   return(sum);
-
-}'
+}
+'
 
 Rcpp::cppFunction(code = src1)
 rcpp_sum(1:10000)
@@ -522,3 +522,51 @@ t1 <- Sys.time()
 res <- mix_prob(U,mu,sigma)
 t2 <- Sys.time()
 print(t2-t1)
+
+
+#----------generate data with non-stationarity in the extremeral dependence---------
+set.seed(1234)
+N <- 2500
+x1 <- rnorm(N,0,1)
+X1 <- cbind(rep(1,N), x1)
+X1 <-  sweep(X1, 2, c(0,mean(X1[,2])), '-')
+
+x2 <- rnorm(N,0,1)
+X2 <- cbind(rep(1,N), x2)
+X2 <-  sweep(X2, 2, c(0,mean(X2[,2])), '-')
+
+beta.a1 <- c(0.5, 0.2)
+beta.a2 <- c(0.5, -0.4)
+beta.b1 <- c(0.25,-0.25)
+
+d<-2
+a<- cbind(exp(X1%*%beta.a1), exp(X1%*%beta.a2))
+b <- cbind(X1%*%beta.b1, 0)
+sig<-c(0.571,0.451)
+gamma<-c(0.253,0.135)
+
+u.x <- c(7,7.2)
+
+mu <- c(5,5.41)
+rho=0.5
+sigma <- 1.5* matrix(c(1,rho,rho,0.8),ncol=2)
+p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+
+n.tail <- N-floor(N*p)
+Y.tail <- matrix(NA, nrow=n.tail,ncol=2)
+set.seed(1234)
+for (i in 1:n.tail){
+  Y.tail[i,] <- sim.RevExpU.MGPD(n=1,d=d, a=a[i,], beta=b[i,], sig=sig, gamma=gamma, MGPD = T,std=T)$X
+}
+
+# GP scale tail data combined with the bulk data
+set.seed(1234)
+Y.bulk <- rtmvnorm(floor(N*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
+Y <- rbind(sweep(Y.tail,2,u.x,"+"), Y.bulk)
+plot(Y)
+# plot(Y.tail)
+# plot(Y.tail.raw)
+# lines(U, col='red')
+
+save(X1,X2, Y, u.x,
+     file=file.path(dir.out,'simulation_data_non_stationary_extr_dep.RData'))
