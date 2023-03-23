@@ -207,9 +207,6 @@ dbiextmix <- nimbleFunction(
                                       lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
                                       lamfix=lamfix, balthresh=FALSE, 
                                       marg.scale.ind=1:2, marg.shape.ind=1:2)
-          if(is.nan(llt.sg)|(llt.sg==-Inf)|(llt.sg==Inf)){
-            print(i)
-          }
           llt <- llt + llt.sg
         }
         if (log){
@@ -235,6 +232,8 @@ dbiextmix <- nimbleFunction(
     return(totalProb)
   })
 
+
+
 test1 <- function(){
   -nim_nll_powunif_GPD(x=y.tail[i,], theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
                        lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
@@ -244,8 +243,10 @@ test1 <- function(){
 
 X <- cbind(X1,X2)
 para.mg <- c(0.571, 0.451, 0.253, 0.035)
-beta.a <- cbind(c(0.5, 0.2),c(0.5, -0.4))
-beta.b <- cbind(c(0.25,-0.25),c(0,0))
+# beta.a <- cbind(c(0.5, 0.2),c(0.5, -0.4))
+# beta.b <- cbind(c(0.25,-0.25),c(0,0))
+beta.a <- cbind(c(0.5, 0),c(-0.4, 0))
+beta.b <- cbind(c(0.25,0),c(0,0))
 a.ind <- c(1,2)
 lam.ind <- c(3)
 sig.ind <- c(4,5)
@@ -274,11 +275,13 @@ dbiextmix(x=Y, para.mg=para.mg, beta.a=beta.a, beta.b=beta.b, X=X,
           log =1)
 
 # -7339.51
+
+# -7223.138
 t2 <- Sys.time()
 print(t2-t1)
 
 ######################poster sampling debug###################
-index <- 1:5000
+index <- 13000:15000
 para.mg <- colMeans(results$samples[index,c('para.mg[1]', 'para.mg[2]',
                                        'para.mg[3]', 'para.mg[4]')])
 beta.a <- matrix(colMeans(results$samples[index,c('beta.a[1, 1]', 'beta.a[2, 1]',
@@ -287,7 +290,7 @@ beta.a <- matrix(colMeans(results$samples[index,c('beta.a[1, 1]', 'beta.a[2, 1]'
 beta.b <- matrix(colMeans(results$samples[index,c('beta.b[1, 1]', 'beta.b[2, 1]',
                                              'beta.b[1, 2]', 'beta.b[2, 2]')]), ncol=2)
 beta.b[,2] <- rep(0,2)
-thres <- colMeans(results$samples[,c('thres[1]','thres[2]')])
+thres <- colMeans(results$samples[index,c('thres[1]','thres[2]')])
 dbiextmix(x=Y, para.mg=para.mg, beta.a=beta.a, beta.b=beta.b, X=X,
           thres=thres, mu=mu,
           cholesky=cholesky,
@@ -348,12 +351,18 @@ BivExtMixcode <- nimbleCode({
     mu_beta[i] <- 0
   for (i in 1:2)
     thres[i] ~ dunif(lb[i], ub[i])
-  for (i in 1:D){
-    beta.a[1:D.pred,i] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
-  }
-  beta.b[1:D.pred,1] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
-  beta.b[1:D.pred,2] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
-  
+  # for (i in 1:D){
+  #   beta.a[1:D.pred,i] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
+  # }
+  # beta.b[1:D.pred,1] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
+  # beta.b[1:D.pred,2] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
+  beta.a[1,1] ~ dnorm(0,sd=10)
+  beta.a[2,1] <- 0
+  beta.a[1,2] ~ dnorm(0,sd=10)
+  beta.a[2,2] <- 0
+  beta.b[1,1] ~ dnorm(0,sd=10)
+  beta.b[2,1] <- 0
+  beta.b[1:2,2] <- rep(0,2)
   
   
   y[1:N,1:D] ~ dbiextmix(para.mg=para.mg[1:4], beta.a=beta.a[1:D.pred,1:D],
@@ -393,30 +402,30 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 10000,nburnin=5000,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 15000,nburnin=0,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1234)
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[,'beta.a[2, 2]'],type='l')
+plot(results$samples[13000:15000,'beta.a[1, 1]'],type='l')
 
-var.name <- 'Ustar[2, 2]'
+var.name <- 'beta.a[1, 1]'
 plot(results$samples[, var.name],type='l', main=paste('Traceplot of',var.name))
 abline(h=chol.corr[2,2],col='red')
 
 pairs(results$samples[,c('beta.a[1, 1]','beta.a[2, 1]',
                          'beta.a[1, 2]','beta.a[2, 2]')])
 
-pairs(results$samples[,c('beta.b[1, 1]','beta.b[2, 1]')])
+pairs(results$samples[,c('beta.b[1, 1]','thres[2]')])
 
 pairs(results$samples[,c('beta.b[1, 2]','beta.b[2, 2]')])
 
-dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod_v2'
-
-save(results, results, file=file.path(dir.out,'results.RData'))
+# dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod_v2'
+# 
+# save(results, results, file=file.path(dir.out,'results_stationary.RData'))
 
 # load(file.path(dir.out,'results.RData'))
-# 
+#  
 # func_debug <- function(beta.b){
 #   X <- cbind(X1,X2)
 #   para.mg <- c(0.571, 0.451, 0.253, 0.035)
