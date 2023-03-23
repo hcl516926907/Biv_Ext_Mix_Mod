@@ -535,9 +535,13 @@ x2 <- rnorm(N,0,1)
 X2 <- cbind(rep(1,N), x2)
 X2 <-  sweep(X2, 2, c(0,mean(X2[,2])), '-')
 
-beta.a1 <- c(0.5, 0.2)
-beta.a2 <- c(0.5, -0.4)
-beta.b1 <- c(0.25,-0.25)
+# beta.a1 <- c(0.5, 0.2)
+# beta.a2 <- c(0.5, -0.4)
+# beta.b1 <- c(0.25,-0.25)
+
+beta.a1 <- c(0.5, 0)
+beta.a2 <- c(-0.4, 0)
+beta.b1 <- c(0.25,0)
 
 d<-2
 a<- cbind(exp(X1%*%beta.a1), exp(X1%*%beta.a2))
