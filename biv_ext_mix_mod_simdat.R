@@ -525,7 +525,9 @@ print(t2-t1)
 
 
 #----------generate data with non-stationarity in the extremeral dependence---------
-set.seed(1234)
+seed <- 1235
+# set.seed(1234)
+set.seed(seed)
 N <- 2500
 x1 <- rnorm(N,0,1)
 X1 <- cbind(rep(1,N), x1)
@@ -535,13 +537,13 @@ x2 <- rnorm(N,0,1)
 X2 <- cbind(rep(1,N), x2)
 X2 <-  sweep(X2, 2, c(0,mean(X2[,2])), '-')
 
-# beta.a1 <- c(0.5, 0.2)
-# beta.a2 <- c(0.5, -0.4)
-# beta.b1 <- c(0.25,-0.25)
+beta.a1 <- c(0.5, 0.2)
+beta.a2 <- c(0.5, -0.4)
+beta.b1 <- c(0.25,-0.25)
 
-beta.a1 <- c(0.5, 0)
-beta.a2 <- c(-0.4, 0)
-beta.b1 <- c(0.25,0)
+# beta.a1 <- c(0.5, 0)
+# beta.a2 <- c(-0.4, 0)
+# beta.b1 <- c(0.25,0)
 
 d<-2
 a<- cbind(exp(X1%*%beta.a1), exp(X1%*%beta.a2))
@@ -558,13 +560,13 @@ p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
 
 n.tail <- N-floor(N*p)
 Y.tail <- matrix(NA, nrow=n.tail,ncol=2)
-set.seed(1234)
+set.seed(seed)
 for (i in 1:n.tail){
   Y.tail[i,] <- sim.RevExpU.MGPD(n=1,d=d, a=a[i,], beta=b[i,], sig=sig, gamma=gamma, MGPD = T,std=T)$X
 }
 
 # GP scale tail data combined with the bulk data
-set.seed(1234)
+set.seed(seed)
 Y.bulk <- rtmvnorm(floor(N*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
 Y <- rbind(sweep(Y.tail,2,u.x,"+"), Y.bulk)
 plot(Y)
@@ -573,7 +575,7 @@ plot(Y)
 # lines(U, col='red')
 
 save(X1,X2, Y, u.x,
-     file=file.path(dir.out,'simulation_data_non_stationary_extr_dep.RData'))
+     file=file.path(dir.out,'simulation_data_non_stationary_extr_dep_1235.RData'))
 
 
 #---------generate data with stationarity in the extremeral dependence by MCMC---------
@@ -888,6 +890,10 @@ par <- opt2.2$par
 opt2.3 <- optim(nll.powunif.GPD, par=par, u=u, x=x, lamfix=F, a.ind=a.ind, lam.ind=lam.ind,
                 sig.ind=sig.ind, gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind, control=list(maxit=10000,reltol=1e-6),balthresh=FALSE,hessian=TRUE)
 
+0.056 0.030 0.032 0.013 0.015 0.007 0.015
+1.96*sqrt(diag(solve(opt2.3$hessian)))
+
+opt2.3$par
 -nll.powunif.GPD(theta=theta, x=x,u=u, lamfix=F, a.ind=a.ind, lam.ind=lam.ind,
                 sig.ind=sig.ind, gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind )
 
