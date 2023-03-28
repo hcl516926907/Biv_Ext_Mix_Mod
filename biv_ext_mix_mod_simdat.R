@@ -838,42 +838,6 @@ opt1.3$par
 
 0.970 0.960 0.697 0.773 0.838 0.776 0.765
 
-N.sim <- 100
-par.mat <- matrix(NA, nrow=N.sim, ncol=length(theta))
-CI.width <- matrix(NA, nrow=N.sim, ncol=length(theta))
-for (i in 1:N.sim){
-  set.seed(i)
-  Y.tail.1 <- sim.RevExpU.MGPD(n=200,d=d, a=a[1,], beta=b[1,], sig=sig, gamma=gamma, MGPD = T,std=T)$X
-  x <- Y.tail.1
-  u <- min(x)-0.01
-  par <- theta
-  opt1<-optim(nll.powunif.GPD, par=par, u=u, x=x, lamfix=F, a.ind=a.ind, lam.ind=lam.ind,
-              sig.ind=sig.ind, gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind, control=list(maxit=10000,reltol=1e-6),balthresh=FALSE)
-  par <- opt1$par
-  opt1.1 <- optim(nll.powunif.GPD, par=par, u=u, x=x, lamfix=F, a.ind=a.ind, lam.ind=lam.ind,
-                  sig.ind=sig.ind, gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind, control=list(maxit=10000,reltol=1e-6),balthresh=FALSE)
-  par <- opt1.1$par
-  opt1.2 <- optim(nll.powunif.GPD, par=par, u=u, x=x, lamfix=F, a.ind=a.ind, lam.ind=lam.ind,
-                  sig.ind=sig.ind, gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind, control=list(maxit=10000,reltol=1e-6),balthresh=FALSE)
-  par <- opt1.2$par
-  opt1.3 <- optim(nll.powunif.GPD, par=par, u=u, x=x, lamfix=F, a.ind=a.ind, lam.ind=lam.ind,
-                  sig.ind=sig.ind, gamma.ind=gamma.ind, marg.scale.ind=marg.scale.ind, marg.shape.ind=marg.shape.ind, control=list(maxit=10000,reltol=1e-6),balthresh=FALSE,hessian=TRUE)
-  
-  par.mat[i,] <- opt1.3$par
-  CI.width[i,] <- 1.96*sqrt(diag(solve(opt1.3$hessian)))
-  print(i)
-}
-
-upper <- par.mat + CI.width
-lower <- par.mat - CI.width
-within.ind <- rep(NA, length(theta))
-for (i in 1:length(theta)){
-  cond <- theta[i]>=lower[,i]
-  cond.nona <- cond[!is.na(cond)]
-  within.ind[i] <- sum(cond.nona) /length(cond.nona)
-}
-
-
 x <- results$samples[,c('y[1]','y[2]')]
 u <- min(x)-0.01
 par <- theta
