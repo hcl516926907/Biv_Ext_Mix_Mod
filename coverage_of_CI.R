@@ -369,7 +369,11 @@ for (i in 1:length(theta)){
 within.ind
 
 
+<<<<<<< HEAD
 ################   standardized  Gumble_T_Functions  ###################
+=======
+################   standardized   RevExp_U_Functions  ###################
+>>>>>>> aecd814d4a677a121aac6cd0331656b6e499f040
 
 theta <- c(1.649, 0.670, 2, 1,  0.571, 0.451, 0.253, 0.135)
 a.ind <- 1:2
