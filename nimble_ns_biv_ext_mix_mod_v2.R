@@ -402,12 +402,12 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 25000,nburnin=0,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 80000,nburnin=0,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1235)
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[10000:25000,'thres[1]'],type='l')
+plot(results$samples[,'thres[1]'],type='l')
 
 var.name <- 'sds[2]'
 plot(results$samples[15000:25000, var.name],type='l', main=paste('Traceplot of',var.name))
@@ -420,9 +420,9 @@ pairs(results$samples[,c('beta.b[1, 1]','thres[2]')])
 
 pairs(results$samples[,c('beta.b[1, 2]','beta.b[2, 2]')])
 
-# dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod_v2'
-# 
-# save(results, results, file=file.path(dir.out,'results_stationary.RData'))
+dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod_v2'
+
+save(results, results, file=file.path(dir.out,'results_non_stationary_seed1235.RData'))
 
 # load(file.path(dir.out,'results.RData'))
 #  
