@@ -546,7 +546,7 @@ beta.b1 <- c(0.25,-0.25)
 # beta.b1 <- c(0.25,0)
 
 d<-2
-a<- cbind(exp(X1%*%beta.a1), exp(X1%*%beta.a2))
+a<- cbind(exp(X1%*%beta.a1), exp(X2%*%beta.a2))
 b <- cbind(X1%*%beta.b1, 0)
 sig<-c(0.571,0.451)
 gamma<-c(0.253,0.135)
@@ -598,7 +598,7 @@ beta.a2 <- c(-0.4, 0)
 beta.b1 <- c(0.25,0)
 
 d<-2
-a<- cbind(exp(X1%*%beta.a1), exp(X1%*%beta.a2))
+a<- cbind(exp(X1%*%beta.a1), exp(X2%*%beta.a2))
 b <- cbind(X1%*%beta.b1, 0)
 sig<-c(0.571,0.451)
 gamma<-c(0.253,0.135)
