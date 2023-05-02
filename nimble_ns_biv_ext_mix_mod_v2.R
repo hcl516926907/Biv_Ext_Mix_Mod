@@ -7,7 +7,7 @@ library(parallel)
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
-load(file.path(dir.in,'simulation_data_non_stationary_extr_dep_1235.RData'))
+load(file.path(dir.in,'simulation_data_non_stationary_extr_dep_seed_1235_N_12500.RData'))
 
 
 R_pmnorm_chol <- function(lower, upper, mean, cholesky){
@@ -80,7 +80,7 @@ nll.powunif.GPD.1<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FA
     rej[j]<-gamma[j]<0 && any(x[,j]>-sig[j]/gamma[j])
   }
   
-  if(any(lam<0.01)||any(a<=0.01)||any(sig<=0.001)||any(rej)){return(10e10)}
+  if(any(lam<0.01)||any(a<=0.01)||any(sig<=0.001)||any(rej)){return(10e7)}
   
   nll.uc <- 0
   nll.pc <- 0
@@ -109,7 +109,7 @@ nll.powunif.GPD.1<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FA
     }
   }
   if (is.nan(nll.uc)|is.nan(nll.pc)|(nll.uc==-Inf)|(nll.uc==Inf)){
-    return(10e10)
+    return(10e7)
   }
   nll<-nll.uc+nll.pc
   
@@ -228,7 +228,6 @@ dbiextmix <- nimbleFunction(
     }else{
       totalProb <- (1-pi)^n.tail *dtail*dbulk
     }
-    
     return(totalProb)
   })
 
@@ -242,7 +241,7 @@ test1 <- function(){
 }
 
 X <- cbind(X1,X2)
-para.mg <- c(0.571, 0.451, 0.253, 0.035)
+para.mg <- c(0.571, 0.451, 0.253, 0.135)
 beta.a <- cbind(c(0.5, 0.2),c(0.5, -0.4))
 beta.b <- cbind(c(0.25,-0.25),c(0,0))
 # beta.a <- cbind(c(0.5, 0),c(-0.4, 0))
@@ -281,7 +280,7 @@ t2 <- Sys.time()
 print(t2-t1)
 
 ######################poster sampling debug###################
-# index <- 13000:15000
+# index <- 20000:30000
 # para.mg <- colMeans(results$samples[index,c('para.mg[1]', 'para.mg[2]',
 #                                        'para.mg[3]', 'para.mg[4]')])
 # beta.a <- matrix(colMeans(results$samples[index,c('beta.a[1, 1]', 'beta.a[2, 1]',
@@ -375,13 +374,13 @@ BivExtMixcode <- nimbleCode({
 
 X1.c <- sweep(X1, 2, c(0,mean(X1[,2])), '-')
 X2.c <- sweep(X2, 2, c(0,mean(X2[,2])), '-')
-BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = 2500, 
+BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = nrow(Y), 
                                                               D = 2,
                                                               D.pred = 2,
                                                               cov_beta = 100*diag(2),
                                                               X = cbind(X1.c,X2.c),
                                                               lb = c(5.85, 6.15),
-                                                              ub = c(21.17, 11.30),
+                                                              ub = c(10.53, 9.57), #0.999 quantile
                                                               a.ind = 1:2,
                                                               lam.ind = 3,
                                                               sig.ind = c(4,5),
@@ -402,18 +401,18 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 80000,nburnin=0,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 15000,nburnin=0,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1235)
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[,'thres[1]'],type='l')
+plot(results$samples[10000:15000,'beta.a[1, 1]'],type='l')
 
-var.name <- 'sds[2]'
-plot(results$samples[15000:25000, var.name],type='l', main=paste('Traceplot of',var.name))
-abline(h=sqrt(1.2),col='red')
+var.name <- 'Ustar[2, 2]'
+plot(results$samples[10000:15000, var.name],type='l', main=paste('Traceplot of',var.name))
+abline(h=chol.corr[2, 2],col='red')
 
-pairs(results$samples[,c('beta.a[1, 1]','beta.a[2, 1]',
+pairs(results$samples[20000:30000,c('beta.a[1, 1]','beta.a[2, 1]',
                          'beta.a[1, 2]','beta.a[2, 2]')])
 
 pairs(results$samples[,c('beta.b[1, 1]','thres[2]')])
@@ -422,7 +421,8 @@ pairs(results$samples[,c('beta.b[1, 2]','beta.b[2, 2]')])
 
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod_v2'
 
-save(results, results, file=file.path(dir.out,'results_non_stationary_seed1235.RData'))
+
+save(results, file=file.path(dir.out,'results_non_stationary_seed1235_n12500.RData'))
 
 # load(file.path(dir.out,'results.RData'))
 #  
