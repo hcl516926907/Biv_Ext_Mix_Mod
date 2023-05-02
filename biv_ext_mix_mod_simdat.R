@@ -528,7 +528,7 @@ print(t2-t1)
 seed <- 1235
 # set.seed(1234)
 set.seed(seed)
-N <- 12500
+N <- 2500
 x1 <- rnorm(N,0,1)
 X1 <- cbind(rep(1,N), x1)
 X1 <-  sweep(X1, 2, c(0,mean(X1[,2])), '-')
@@ -575,7 +575,7 @@ plot(Y)
 # lines(U, col='red')
 
 save(X1,X2, Y, u.x,
-     file=file.path(dir.out,'simulation_data_non_stationary_extr_dep_seed_1235_N_12500.RData'))
+     file=file.path(dir.out,'simulation_data_non_stationary_extr_dep_seed_1235_N_2500.RData'))
 
 
 #---------generate data with stationarity in the extremeral dependence by MCMC---------
