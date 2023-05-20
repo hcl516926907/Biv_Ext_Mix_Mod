@@ -7,7 +7,7 @@ library(parallel)
 
 dir.in <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/biv_ext_mix_mod_simdat'
 
-load(file.path(dir.in,'simulation_data_non_stationary_extr_dep_seed_1235_N_12500.RData'))
+load(file.path(dir.in,'simulation_data_non_stationary_extr_dep_seed_1235_N_2500.RData'))
 
 
 R_pmnorm_chol <- function(lower, upper, mean, cholesky){
@@ -401,16 +401,16 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 15000,nburnin=0,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 80000,nburnin=0,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1235)
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results$samples[10000:15000,'beta.a[1, 1]'],type='l')
+plot(results$samples[55000:80000,'thres[1]'],type='l')
 
-var.name <- 'Ustar[2, 2]'
+var.name <- 'sds[2]'
 plot(results$samples[10000:15000, var.name],type='l', main=paste('Traceplot of',var.name))
-abline(h=chol.corr[2, 2],col='red')
+abline(h=sqrt(1.2),col='red')
 
 pairs(results$samples[20000:30000,c('beta.a[1, 1]','beta.a[2, 1]',
                          'beta.a[1, 2]','beta.a[2, 2]')])
@@ -422,7 +422,7 @@ pairs(results$samples[,c('beta.b[1, 2]','beta.b[2, 2]')])
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/nimble_ns_biv_ext_mix_mod_v2'
 
 
-save(results, file=file.path(dir.out,'results_non_stationary_seed1235_n12500.RData'))
+save(results, file=file.path(dir.out,'results_non_stationary_seed1235_n2500_itr80k.RData'))
 
 # load(file.path(dir.out,'results.RData'))
 #  
