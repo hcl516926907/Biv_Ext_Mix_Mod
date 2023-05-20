@@ -22,7 +22,7 @@ u.x <- c(7,7.2)
 plot(density(rnorm(N,1,3) + gamma*u))
 
 sig.t <- sig[1]
-xi <- 0.5
+xi <- 0
 u <- 6
 
 sig.s <- sig.t - xi*u
@@ -82,7 +82,7 @@ dextrmix <- nimbleFunction(
     return(totalProb)
   })
 
-dextrmix(x=y, u=6, sig=0.47, xi=0.3,log=T)
+dextrmix(x=y, u=6, sig=sig.t, xi=xi,log=T)
 
 rextrmix <- nimbleFunction(
   run = function(n=integer(0),u=double(0), sig=double(0), xi=double(0)) {
@@ -104,8 +104,8 @@ registerDistributions(list(
 ExtMixcode <- nimbleCode({
   u ~ dunif(5,8)
   sig ~ dunif(0,10)
-  xi ~ dunif(0,1)
-
+  xi ~ dunif(-1,1)
+  sig.s <- sig - u*xi
   y[1:N] ~ dextrmix(u=u, sig=sig, xi=xi)
 })
 
@@ -117,7 +117,8 @@ cExtMixmodel <- compileNimble(ExtMixmodel)
 
 
 ExtMixconf <- configureMCMC(ExtMixmodel,
-                               enableWAIC = TRUE, time=TRUE)
+                               enableWAIC = TRUE, time=TRUE,
+                              monitors=c('sig.s', 'sig','u', 'xi'))
 
 ExtMixMCMC <- buildMCMC(ExtMixconf)
 # BivExtMixMCMC$run(1)
@@ -129,11 +130,14 @@ results.uni <- runMCMC(cExtMixMCMC, niter = 30000,nburnin=0,thin=1,
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results.uni$samples[20000:30000, 'u'],type='l')
-plot(results.uni$samples[20000:30000, 'sig'],type='l')
-plot(results.uni$samples[20000:30000, 'xi'],type='l')
+plot(results.uni$samples[20000:30000, 'u'],type='l', main='Traceplot of u')
+abline(h=u,col='red')
+plot(results.uni$samples[20000:30000, 'sig'],type='l', main='Tranceplot of sigma')
+abline(h=sig.t, col='red')
+plot(results.uni$samples[20000:30000, 'xi'],type='l', main='Traceplot of gamma')
+abline(h=xi,col='red')
 
-
+plot(results.uni$samples[20000:30000, 'sig.s'],type='l', main='Tranceplot of scaled sigma')
 
 ############################ reparametrize the model #####################
 
@@ -155,7 +159,7 @@ ll.extr.mix.1 <- function(y,u,sig,xi){
 
 }
 
-ll.extr.mix.1(y,u=u,sig=-1,xi=xi)
+ll.extr.mix.1(y,u=u,sig=sig.s,xi=xi)
 
 y.range <- seq(-10,15,0.01)
 sp.prob <- rep(NA, length(y.range))
@@ -183,7 +187,7 @@ dextrmix1 <- nimbleFunction(
     return(totalProb)
   })
 
-dextrmix1(x=y, u=6, sig=-1, xi=0.3,log=T)
+dextrmix1(x=y, u=6, sig=sig.s, xi=xi,log=T)
 
 rextrmix.1 <- nimbleFunction(
   run = function(n=integer(0),u=double(0), sig=double(0), xi=double(0)) {
@@ -204,8 +208,8 @@ registerDistributions(list(
 
 ExtMixcode1 <- nimbleCode({
   u ~ dunif(5,8)
-  sig.s ~ dnorm(-2, sd=5)
-  xi ~ dunif(0,1)
+  sig.s ~ dunif(0,10)
+  xi ~ dunif(-1,1)
   sig.t <- sig.s + u*xi
   y[1:N] ~ dextrmix1(u=u, sig=sig.s, xi=xi)
 })
@@ -231,8 +235,12 @@ results.uni.1 <- runMCMC(cExtMixMCMC1, niter = 30000,nburnin=0,thin=1,
 t2 <- Sys.time()
 print(t2-t1)
 
-plot(results.uni.1$samples[20000:30000, 'u'],type='l')
-plot(results.uni.1$samples[20000:30000, 'sig.t'],type='l')
-plot(results.uni.1$samples[20000:30000, 'sig.s'],type='l')
-plot(results.uni.1$samples[20000:30000, 'xi'],type='l')
+plot(results.uni.1$samples[20000:30000, 'u'],type='l', main='Traceplot of u')
+abline(h=u,col='red')
+plot(results.uni.1$samples[20000:30000, 'sig.t'],type='l', main= 'Traceplot of sigma')
+abline(h=sig.t,col='red')
+plot(results.uni.1$samples[20000:30000, 'sig.s'],type='l', main= 'Traceplot of scaled sigma')
+abline(h=sig.s,col='red')
+plot(results.uni.1$samples[20000:30000, 'xi'],type='l', main='Trace of gamma')
+abline(h=xi,col='red')
 
