@@ -292,6 +292,7 @@ print(result)
 
 save(result, file=file.path(dir.out, 'bootstrap_result.RData'))
 
+load(file=file.path(dir.out, 'bootstrap_result.RData'))
 bs.sp.1 <- c()
 bs.sp.2 <- c()
 for (i in 1:iterations){
@@ -324,3 +325,41 @@ for (i in 1:9){
          xaxt = "n", xlab='',ylab='CI', main=paste('CI plot for point',i))
   axis(1, at=1:3, labels=c('pred1', 'pred2', 'pred_avg'))
 }
+
+
+
+df1 <- data.frame(
+  idx = 1:100,
+  estimate = apply(bs.sp.1, 1, mean),
+  lower = apply(bs.sp.1, 1, quantile, 0.25),
+  upper = apply(bs.sp.1, 1, quantile, 0.75),
+  model = '30_sample_extrapolation'
+)
+
+df2 <- data.frame(
+  idx = 1:100,
+  estimate = apply(bs.sp.2, 1, mean),
+  lower = apply(bs.sp.2, 1, quantile, 0.25),
+  upper = apply(bs.sp.2, 1, quantile, 0.75),
+  model = '90_sample_extrapolation'
+)
+
+df3 <- data.frame(
+  idx = 1:100,
+  estimate = apply(bs.sp.3, 1, mean),
+  lower = apply(bs.sp.3, 1, quantile, 0.25),
+  upper = apply(bs.sp.3, 1, quantile, 0.75),
+  model = 'weighted_avg_extrapolation'
+)
+
+df.all <- rbind(df1,df2,df3)
+
+ggplot(df.all, aes(x = idx, y = estimate, color = model)) +
+  geom_point(position = position_dodge(0.5)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.5)) +
+  ylab("Estimate") +
+  xlab("Index") +
+  theme(legend.position = "bottom") + 
+  ylim(c(50,370))
+
+write.csv(df.all,  file=file.path(dir.out, 'Q1_extrapolation_estimation.csv'))
