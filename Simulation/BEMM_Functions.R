@@ -160,6 +160,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
       sig <- para.mg[1:D]
       gamma <- para.mg[(D+1):(2*D)]
       eta <- -sig/gamma
+      eta[which(gamma<=0)] <- -Inf
       
       dtail <- 0
       dbulk <- 0
@@ -231,6 +232,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
       sig <- theta[sig.ind]
       gamma <- theta[gamma.ind]
       eta <- -sig/gamma
+      eta[which(gamma<=0)] <- -Inf
       
       dtail <- 0
       dbulk <- 0
@@ -575,6 +577,7 @@ dbiextmix_ns <- nimbleFunction(
     sig <- para.mg[1:D]
     gamma <- para.mg[(D+1):(2*D)]
     eta <- -sig/gamma
+    eta[which(gamma<=0)] <- -Inf
     
     dtail <- 0
     dbulk <- 0
@@ -646,6 +649,7 @@ dbiextmix <- nimbleFunction(
     sig <- theta[sig.ind]
     gamma <- theta[gamma.ind]
     eta <- -sig/gamma
+    eta[which(gamma<=0)] <- -Inf
     
     dtail <- 0
     dbulk <- 0
