@@ -13,7 +13,7 @@ d <- 2
 a <- c(1.5, 2)
 beta <- c(0.5, 0)
 sig <- c(0.5, 0.4)
-gamma <- c(0.2, 0.1)
+gamma <- c(-0.2, -0.1)
 n <- 2000
 mu <- c(3.5, 4.5)
 sd1 <- 1.22
@@ -72,7 +72,8 @@ samples.all <- rbind(chain_output[[1]]$samples,
                      chain_output[[3]]$samples)
 waic <- calculateWAIC(samples.all, BivExtMixmodel)
 
-save(chain_output, convg.stat, waic, file=file.path(dir.out, 'Scenario1.1.RData'))
+save(chain_output, convg.stat, waic, file=file.path(dir.out, 'Scenario1.3.RData'))
 
-plot(chain_output[[1]]$samples[,'thres[1]'],type='l')
-plot(density(chain_output[[1]]$samples[,'thres[1]']))
+plot(chain_output[[1]]$samples[,'theta[6]'],type='l')
+plot(density(chain_output[[1]]$samples[,'theta[6]']))
+plot(density(samples.all[,'theta[6]']))
