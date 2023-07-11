@@ -407,8 +407,8 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
   
   BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                  enableWAIC = TRUE, time=TRUE)
-  # BivExtMixconf$removeSamplers(c('beta[1:4, 1]', 'beta[1:4, 2]'))
-  # BivExtMixconf$addSampler(target = c('beta[1:4, 1]', 'beta[1:4, 2]'), type = 'AF_slice')
+  # BivExtMixconf$removeSamplers(c('theta[1:7]', 'thres[1:2]'))
+  # BivExtMixconf$addSampler(target = c('theta[1:7]', 'thres[1:2]'), type = 'AF_slice')
   
   BivExtMixMCMC <- buildMCMC(BivExtMixconf)
   # BivExtMixMCMC$run(1)
