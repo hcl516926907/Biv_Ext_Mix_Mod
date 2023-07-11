@@ -77,3 +77,11 @@ save(chain_output, convg.stat, waic, file=file.path(dir.out, 'Scenario1.3.RData'
 plot(chain_output[[1]]$samples[,'theta[6]'],type='l')
 plot(density(chain_output[[1]]$samples[,'theta[6]']))
 plot(density(samples.all[,'theta[6]']))
+
+
+load(file=file.path(dir.out, 'Scenario1.3.RData'))
+samples.all <- rbind(chain_output[[1]]$samples,
+                     chain_output[[2]]$samples,
+                     chain_output[[3]]$samples)
+plot(samples.all[,'mu[2]'],type='l',main='Traceplot of mu2')
+abline(h=4.5 ,col='red')

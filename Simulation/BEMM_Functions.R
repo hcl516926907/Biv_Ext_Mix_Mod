@@ -392,7 +392,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
                                                                 mu.thres = apply(dat,2,quantile,0.9),#90 quantile
                                                                 sd.thres = c(10,10), 
                                                                 min.thres = apply(dat,2,quantile,0.8),
-                                                                max.thres = apply(dat,2,quantile,0.999),
+                                                                max.thres = apply(dat,2,quantile,0.99),
                                                                 mu_beta = rep(0,2),
                                                                 cov_beta = 100*diag(2),
                                                                 a.ind = 1:2,
@@ -796,7 +796,7 @@ BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = nrow(dat),
                                                               mu.thres = apply(dat,2,quantile,0.9),#90 quantile
                                                               sd.thres = c(10,10), 
                                                               min.thres = apply(dat,2,quantile,0.8),
-                                                              max.thres = apply(dat,2,quantile,0.999),
+                                                              max.thres = apply(dat,2,quantile,0.99),
                                                               mu_beta = rep(0,2),
                                                               cov_beta = 100*diag(2),
                                                               a.ind = 1:2,
