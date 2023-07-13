@@ -5,6 +5,7 @@ library(mvtnorm)
 library(parallel)
 library(tmvtnorm)
 library(posterior)
+library(scoringRules)
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 
@@ -72,7 +73,7 @@ samples.all <- rbind(chain_output[[1]]$samples,
                      chain_output[[3]]$samples)
 waic <- calculateWAIC(samples.all, BivExtMixmodel)
 
-save(chain_output, convg.stat, waic, file=file.path(dir.out, 'Scenario1.3.RData'))
+# save(chain_output, convg.stat, waic, file=file.path(dir.out, 'Scenario1.3.RData'))
 
 plot(chain_output[[1]]$samples[,'theta[6]'],type='l')
 plot(density(chain_output[[1]]$samples[,'theta[6]']))
@@ -85,3 +86,4 @@ samples.all <- rbind(chain_output[[1]]$samples,
                      chain_output[[3]]$samples)
 plot(samples.all[,'mu[2]'],type='l',main='Traceplot of mu2')
 abline(h=4.5 ,col='red')
+

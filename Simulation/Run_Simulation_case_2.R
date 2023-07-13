@@ -12,22 +12,6 @@ dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simul
 #----------------------------------Gaussian Bulk-----------------------------------------
 # #1234 has some issues
 # #1235 works
-# seed <- 1234
-# 
-# n <- 2000
-# mu <- c(3.5, 4.5)
-# sd1 <- 1.22
-# sd2 <- 1.10
-# rho <- 0.72
-# sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
-# 
-# set.seed(seed)
-# Y <- rtmvnorm(n, mean=mu, sigma=sigma, lower=c(0,0))
-# 
-# # The name of the dataset should be Y for further WAIC calculation.
-# plot(Y)
-
-#----------------------------------Gumbel Bulk-----------------------------------------
 seed <- 1234
 
 n <- 2000
@@ -39,6 +23,22 @@ sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
 
 set.seed(seed)
 Y <- rtmvnorm(n, mean=mu, sigma=sigma, lower=c(0,0))
+
+# The name of the dataset should be Y for further WAIC calculation.
+plot(Y)
+
+#----------------------------------Gumbel Bulk-----------------------------------------
+# seed <- 1234
+# 
+# n <- 2000
+# mu <- c(3.5, 4.5)
+# sd1 <- 1.22
+# sd2 <- 1.10
+# rho <- 0.72
+# sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+# 
+# set.seed(seed)
+# Y <- rtmvnorm(n, mean=mu, sigma=sigma, lower=c(0,0))
 
 #---------------------------------------------------------------------------------------
 source('Simulation/BEMM_Functions.R')
