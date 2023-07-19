@@ -7,10 +7,11 @@ source(file.path(dir.work, "KRSW/CommonFunctions.r"))
 
 install.packages("pacman",repos = "http://cran.us.r-project.org")
 
-pacman::p_load(nimble, mvtnorm, parallel,tmvtnorm,posterior,foreach,doSNOW)
+pacman::p_load(nimble, mvtnorm,tmvtnorm,foreach,doSNOW, parallel)
 
+print(detectCores())
 # t3 <- Sys.time()
-# for (i in 1:10) {
+# for (i in 1:1) {
 #   print(i)
 #   seed <- i
 #   d <- 2
@@ -24,36 +25,36 @@ pacman::p_load(nimble, mvtnorm, parallel,tmvtnorm,posterior,foreach,doSNOW)
 #   sd2 <- 1.10
 #   rho <- 0.72
 #   sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
-#   
+# 
 #   u.x <- c(5.6, 7)
 #   p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
-#   
+# 
 #   set.seed(seed)
 #   Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
-#   
+# 
 #   # GP scale tail data combined with the bulk data
 #   set.seed(seed)
 #   Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
-#   
+# 
 #   # The name of the dataset should be Y for further WAIC calculation.
 #   Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
 #   # plot(Y)
-#   
+# 
 #   source(file.path(dir.work, 'Simulation/BEMM_Functions.R'))
-#   
+# 
 #   detectCores()
 #   this_cluster <- makeCluster(4)
-#   
+# 
 #   t1 <- Sys.time()
-#   chain_output <- parLapply(cl = this_cluster, X = 1:4, 
-#                             fun = run_MCMC_parallel, 
-#                              dat = Y, niter = 15000, nburnin=10000, thin=5)
+#   chain_output <- parLapply(cl = this_cluster, X = 1:4,
+#                             fun = run_MCMC_parallel,
+#                              dat = Y, niter = 200, nburnin=0, thin=10)
 #   t2 <- Sys.time()
 #   print(t2-t1)
-#   
-#   
+# 
+# 
 #   stopCluster(this_cluster)
-#   
+# 
 #   para.name <- colnames(chain_output[[1]]$samples)
 #   rhat.seq <- c()
 #   ess.seq <- c()
@@ -65,31 +66,32 @@ pacman::p_load(nimble, mvtnorm, parallel,tmvtnorm,posterior,foreach,doSNOW)
 #     ess.seq <- c(ess.seq, ess_basic(post.sp))
 #   }
 #   convg.stat <- data.frame(para.name,rhat.seq,ess.seq )
-#   
-#   
-#   
+# 
+# 
+# 
 #   samples.all <- rbind(chain_output[[1]]$samples,
 #                        chain_output[[2]]$samples,
 #                        chain_output[[3]]$samples)
 #   # waic <- calculateWAIC(samples.all, BivExtMixmodel)
 #   filename <- paste('Scenario1.1_seed',i,'.RData',sep='')
-#   save(Y, chain_output, convg.stat, file=file.path(dir.out, filename))
+#   # save(Y, chain_output, convg.stat, file=file.path(dir.out, filename))
 # }
 # t4 <- Sys.time()
 # print(t4-t3)
+#36mins for 200 iter on euclid 01, 2.15 mins for 200 iters on RStudio server
+#22mins for 100 iter on euclid 01, 1.45 mins for 100 iters on RStudio server
 
 
-
-NumberOfCluster <- 10
-cl <- makeCluster(NumberOfCluster) 
-registerDoSNOW(cl) 
+NumberOfCluster <- 4
+cl <- makeCluster(NumberOfCluster)
+registerDoSNOW(cl)
 
 source(file.path(dir.work, 'Simulation/BEMM_Functions.R'))
 
 t1 <- Sys.time()
-chain_res <- 
-foreach(i = 1:10) %:% 
-  foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
+chain_res <-
+foreach(i = 1:1) %:%
+  foreach(j = 1:1, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     seed <- i
     d <- 2
     a <- c(1.5, 2)
@@ -102,22 +104,46 @@ foreach(i = 1:10) %:%
     sd2 <- 1.10
     rho <- 0.72
     sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
-    
+
     u.x <- c(5.6, 7)
     p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
-    
+
     set.seed(seed)
     Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
-    
+
     # GP scale tail data combined with the bulk data
     set.seed(seed)
     Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
-    
+
     # The name of the dataset should be Y for further WAIC calculation.
     Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
-    run_MCMC_parallel(seed=j, dat=Y, niter=20000, nburnin = 10000, thin=10)
+    run_MCMC_parallel(seed=j, dat=Y, niter=200, nburnin = 0, thin=10)
   }
 
-save(chain_res,  file=file.path(dir.out, filename='Scenario_1.1_itr1_30.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.1_itr1_30.RData'))
 t2 <- Sys.time()
 print(t2-t1)
+
+
+# 4 cores, 1:1,1:3, 100 iterations, 1.45 min  on RStudio server
+# 4 cores, 1:2,1:2, 100 iterations, 1.48 min  on RStudio server
+#30 cores, 1:10,1:3, 100 iterations, 10 mins on Euclid 01
+
+# 4 cores, 1:1,1:1, 200 iterations, 1.86 min  on RStudio server
+# 4 cores, 1:1,1:3, 200 iterations, 2.14 min  on RStudio server
+# 4 cores, 1:2,1:2, 200 iterations, 2.19 min  on RStudio server
+
+
+# 4 cores, 1:1,1:3, 200 iterations, 5 min  on Euclid 01
+# 4 cores, 1:1,1:1, 200 iterations, 2.12 min  on Euclid 01
+
+
+
+#15 cores, 1:5, 1:3, 200 iterations. 13 mins on Euclid 01
+#12 cores, 1:4, 1:3, 200 iterations. 11 mins on Euclid 01
+#15 cores, 1:4, 1:3, 200 iterations. 11 mins on Euclid 01
+
+#30 cores, 1:10,1:3, 200 iterations, 21 mins on Euclid 01
+
+# full CPU utilization on Euclid 01
+#https://stackoverflow.com/questions/24145693/r-foreach-not-using-multiple-cores
