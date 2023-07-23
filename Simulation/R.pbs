@@ -1,0 +1,26 @@
+#!/bin/bash  
+#PBS -N Scenario1.1
+# name you want to give your job (optional)
+#PBS -q defaultq
+# name of queue - at the moment we have only one queue so you don't need to specify it here)
+#PBS -l nodes=1:ppn=20
+#  this line selects 1 node and 1 processor on that node (nodes have multiple Processors Per Node - the command pbsnodes will list each)
+#  R only actually uses 1 processor inside the node (unless you are using one of the multiprocessor functions in R.)
+#  Do not increase the node count.
+#  You can change that line to #PBS -l nodes=1:ppn=12 if your job needs to use all 12 procs or if you really need all 32GB Ram
+#
+#PBS -j oe
+# above line joins the stdout and stderr  
+#PBS -l walltime=30:00:00
+# request ONE hour of  walltime.  your job will be killed if it goes over.  please change this to whatever your code requires
+# Your job will start sooner, the shorter the walltime.
+
+#
+# change the email address and remove the first hash from the next line if you want emails about your job
+#PBS -M 2448355h@student.gla.ac.uk
+#PBS -m abe
+
+cd $PBS_O_WORKDIR
+#change to working directory
+R CMD BATCH Run_Simulation_1.1.R
+# the command that runs your code

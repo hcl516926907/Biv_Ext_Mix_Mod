@@ -3,11 +3,46 @@ dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simul
 source(file.path(dir.work, "KRSW/RevExp_U_Functions.r"))
 source(file.path(dir.work, "KRSW/CommonFunctions.r"))
 
+# install_load_packages <- function(packages) {
+#   nodename <- Sys.info()['nodename']
+#   lib_path <- file.path("/home/pgrad2/2448355h/R/library", nodename)
+#   .libPaths(lib_path)
+#   # Create a separate library folder for each node, if it doesn't exist
+#   if (!dir.exists(lib_path)) {
+#     dir.create(lib_path, recursive = TRUE)
+#   }
+#   
+#   for (package in packages) {
+#     # Check if the package is installed in the specific folder
+#     if(!require(package, character.only = TRUE, lib.loc = lib_path)) {
+#       install.packages(package, lib = lib_path, dependencies = TRUE)
+#       library(package, character.only = TRUE, lib.loc = lib_path)
+#     }
+#     
+#     # Load the package
+#     library(package, character.only = TRUE, lib.loc = lib_path)
+#   }
+# }
+
+load_install_packages <- function(packages) {
+  for(package in packages){
+    # If the package is not installed, install it
+    if(!require(package, character.only = TRUE)) {
+      install.packages(package, dependencies = TRUE,repos='http://cran.us.r-project.org')
+      # Load the package after installation
+      library(package, character.only = TRUE)
+    } else {
+      # If the package is already installed, just load it
+      library(package, character.only = TRUE)
+    }
+  }
+}
+
+# List the packages you want to load
+packages <- c("nimble", "mvtnorm", "tmvtnorm","foreach","doSNOW","parallel")  
 
 
-install.packages("pacman",repos = "http://cran.us.r-project.org")
-
-pacman::p_load(nimble, mvtnorm,tmvtnorm,foreach,doSNOW, parallel)
+load_install_packages(packages)
 
 print(detectCores())
 # t3 <- Sys.time()
@@ -82,7 +117,7 @@ print(detectCores())
 #22mins for 100 iter on euclid 01, 1.45 mins for 100 iters on RStudio server
 
 
-NumberOfCluster <- 4
+NumberOfCluster <- 15
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
 
@@ -90,22 +125,22 @@ source(file.path(dir.work, 'Simulation/BEMM_Functions.R'))
 
 t1 <- Sys.time()
 chain_res <-
-foreach(i = 1:1) %:%
-  foreach(j = 1:1, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
+foreach(i = 1:5) %:%
+  foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     seed <- i
     d <- 2
-    a <- c(1.5, 2)
+    a <- c(0.5, 1.2)
     beta <- c(0.5, 0)
-    sig <- c(0.5, 0.4)
-    gamma <- c(0.2, 0.1)
+    sig <- c(0.5, 1.2)
+    gamma <- c(0.3, 0.1)
     n <- 2000
-    mu <- c(3.5, 4.5)
-    sd1 <- 1.22
-    sd2 <- 1.10
-    rho <- 0.72
+    mu <- c(3.5, 4.0)
+    sd1 <- 1
+    sd2 <- 1.5
+    rho <- 0.7
     sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
 
-    u.x <- c(5.6, 7)
+    u.x <- c(5.5, 6.8)
     p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
 
     set.seed(seed)
@@ -117,10 +152,11 @@ foreach(i = 1:1) %:%
 
     # The name of the dataset should be Y for further WAIC calculation.
     Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
-    run_MCMC_parallel(seed=j, dat=Y, niter=200, nburnin = 0, thin=10)
+    plot(Y)
+    run_MCMC_parallel(seed=j, dat=Y, niter=20000, nburnin = 10000, thin=10)
   }
 
-# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.1_itr1_30.RData'))
+save(chain_res,  file=file.path(dir.out, filename='Scenario_1.1_itr1_15.RData'))
 t2 <- Sys.time()
 print(t2-t1)
 
@@ -136,7 +172,19 @@ print(t2-t1)
 
 # 4 cores, 1:1,1:3, 200 iterations, 5 min  on Euclid 01
 # 4 cores, 1:1,1:1, 200 iterations, 2.12 min  on Euclid 01
+# 4 cores, 1:2,1:2, 200 iterations, 12 min on Euclid 01
+# 4 cores, 1:2,1:2, 200 iterations, 4.5 min on Euclid 27 #CPU utilization is full
+# 4 cores, 1:2,1:2, 200 iterations, 4.5 min on Euclid 28 #CPU utilization is full
+# 4 cores, 1:2,1:2, 200 iterations, 25.5 min on Euclid 29 #CPU utilization is full
 
+# 4 cores, 1:2,1:2, 200 iterations, 6.7 min on Euclid 30
+# 7 cores, 1:2,1:3, 200 iterations, 7.7 min on Euclid 30
+# 20 cores, 1;6,1:3, 200 iterations, 14.9 min on Euclid 30 #potentially not utilize all 20 cores because of full utilization.
+# 20 cores, 1;6,1:3, 200 iterations, 15.5 min on Euclid 29 #potentially not utilize all 20 cores because of full utilization.
+
+# 15 cores, 1;5,1:3, 200 iterations, 13.9 min on Euclid 29 
+# 15 cores, 1;5,1:3, 200 iterations, 5.6 min on Euclid 28 
+# 15 cores, 1;5,1:3, 200 iterations, 5.3 min on Euclid 27
 
 
 #15 cores, 1:5, 1:3, 200 iterations. 13 mins on Euclid 01
