@@ -155,7 +155,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
       y.tail <- matrix(c(x[cond,1] - thres[1], x[cond,2] - thres[2]), ncol=D)
       y.bulk <- x[!cond,]
       
-      pi <- pmnorm_chol(lower=rep(0,D), upper=thres, mean=mu, cholesky = cholesky)
+      pi <- pmnorm_chol(lower=rep(-Inf,D), upper=thres, mean=mu, cholesky = cholesky)
       
       sig <- para.mg[1:D]
       gamma <- para.mg[(D+1):(2*D)]
@@ -227,7 +227,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
       y.tail <- matrix(c(x[cond,1] - thres[1], x[cond,2] - thres[2]), ncol=D)
       y.bulk <- x[!cond,]
       
-      pi <- pmnorm_chol(lower=rep(0,D), upper=thres, mean=mu, cholesky = cholesky)
+      pi <- pmnorm_chol(lower=rep(-Inf,D), upper=thres, mean=mu, cholesky = cholesky)
       
       sig <- theta[sig.ind]
       gamma <- theta[gamma.ind]
@@ -572,7 +572,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
 #     y.tail <- matrix(c(x[cond,1] - thres[1], x[cond,2] - thres[2]), ncol=D)
 #     y.bulk <- x[!cond,]
 #     
-#     pi <- pmnorm_chol(lower=rep(0,D), upper=thres, mean=mu, cholesky = cholesky)
+#     pi <- pmnorm_chol(lower=rep(-Inf,D), upper=thres, mean=mu, cholesky = cholesky)
 #     
 #     sig <- para.mg[1:D]
 #     gamma <- para.mg[(D+1):(2*D)]
@@ -644,7 +644,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
 #     y.tail <- matrix(c(x[cond,1] - thres[1], x[cond,2] - thres[2]), ncol=D)
 #     y.bulk <- x[!cond,]
 #     
-#     pi <- pmnorm_chol(lower=rep(0,D), upper=thres, mean=mu, cholesky = cholesky)
+#     pi <- pmnorm_chol(lower=rep(-Inf,D), upper=thres, mean=mu, cholesky = cholesky)
 #     
 #     sig <- theta[sig.ind]
 #     gamma <- theta[gamma.ind]

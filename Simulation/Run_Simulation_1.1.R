@@ -62,14 +62,14 @@ print(detectCores())
 #   sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
 # 
 #   u.x <- c(5.6, 7)
-#   p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+#   p <- pmvnorm(lower=rep(-Inf,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
 # 
 #   set.seed(seed)
 #   Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
 # 
 #   # GP scale tail data combined with the bulk data
 #   set.seed(seed)
-#   Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
+#   Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, lower=c(-Inf,-Inf),upper=u.x)
 # 
 #   # The name of the dataset should be Y for further WAIC calculation.
 #   Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
@@ -141,18 +141,17 @@ foreach(i = 1:5) %:%
     sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
 
     u.x <- c(5.5, 6.8)
-    p <- pmvnorm(lower=rep(0,2), upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+    p <- pmvnorm(upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
 
     set.seed(seed)
     Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
 
     # GP scale tail data combined with the bulk data
     set.seed(seed)
-    Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, lower=c(0,0),upper=u.x)
+    Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma,upper=u.x)
 
     # The name of the dataset should be Y for further WAIC calculation.
     Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
-    plot(Y)
     run_MCMC_parallel(seed=j, dat=Y, niter=20000, nburnin = 10000, thin=10)
   }
 
