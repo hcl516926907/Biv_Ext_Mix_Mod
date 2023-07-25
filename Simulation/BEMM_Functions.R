@@ -399,7 +399,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
                                                                 lam.ind = 3,
                                                                 sig.ind = c(4,5),
                                                                 gamma.ind = c(6,7),
-                                                                lamfix=FALSE),check = FALSE)
+                                                                lamfix=TRUE),check = FALSE)
   
   
   BivExtMixmodel$setData(list(y = dat))  ## Set those values as data in the model

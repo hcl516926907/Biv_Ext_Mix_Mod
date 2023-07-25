@@ -2,15 +2,80 @@ library(evd)
 library(scoringRules)
 library(mvtnorm)
 library(tmvtnorm)
+library(HDInterval)
 source("KRSW/RevExp_U_Functions.r")
 source("KRSW/CommonFunctions.r")
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
-load(file=file.path(dir.out, 'Scenario2.1_1234_0.99upper.RData'))
 
-samples <- rbind(chain_output[[1]]$samples,
-                                chain_output[[2]]$samples,
-                                chain_output[[3]]$samples)
+
+##################################--------
+load(file=file.path(dir.out, 'Scenario_1.1_itr1_20_lamfix.RData'))
+chain_out <- chain_res
+
+para.name <- colnames(chain_out[[1]][[1]]$samples)
+post.mean.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
+colnames(post.mean.mat) <- para.name
+cover.ind.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
+colnames(cover.ind.mat) <- para.name
+
+for (itr in 1:20){
+  rhat.seq <- c()
+  ess.seq <- c()
+  for (name in para.name){
+    post.sp <- cbind(chain_out[[itr]][[1]]$samples[,name],
+                     chain_out[[itr]][[2]]$samples[,name],
+                     chain_out[[itr]][[3]]$samples[,name]
+                     )
+    rhat.seq <- c(rhat.seq, rhat(post.sp))
+    ess.seq <- c(ess.seq, ess_basic(post.sp))
+  }
+  convg.stat <- data.frame(para.name,rhat.seq,ess.seq )
+  convg.stat
+  
+  samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
+                       chain_out[[itr]][[2]]$samples[,],
+                       chain_out[[itr]][[3]]$samples[,]
+                       )
+
+  
+  # True parameters
+  a <- c(0.5, 1.2)
+  beta <- c(0, 0)
+  sig <- c(0.5, 1.2)
+  gamma <- c(0.3, 0.1)
+  mu <- c(3.5, 4.0)
+  sd1 <- 1
+  sd2 <- 1.5
+  rho <- 0.7
+  sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+  chol_corr <- chol(matrix(c(1,rho,rho,1),ncol=2))
+  u.x <- c(5.5, 6.7)
+  # u.x <- c(4.7,6)
+  true.para <- c(1,0,chol_corr[1,2],chol_corr[2,2], mu, sd1, sd2, a, exp(3),sig, gamma, u.x)
+  
+  post.mean <- colMeans(samples.all[,])
+  post.mean.mat[itr,] <- post.mean
+  post.lb <- apply(samples.all, 2, quantile, 0.025)
+  post.ub <- apply(samples.all, 2, quantile, 0.975)
+  cover.ind <- (true.para >= post.lb)&(true.para <= post.ub)
+  # print(cover.ind)
+  cover.ind.mat[itr, ] <- cover.ind
+}
+
+avg.post.mean <- colMeans(post.mean.mat)
+
+plot(samples.all[,'thres[2]'],type='l')
+plot(density(samples.all[,'thres[2]']))
+
+plot((chain_out[[2]][[2]]$samples[,'thres[2]']),type='l')
+
+
+
+
+
+
+
 
 post.pred <- function(n, samples){
   Y.pred <- matrix(NA,nrow=n, ncol=2)
