@@ -6,5 +6,7 @@
 *.txt
 nohup.out
 *.pdf
+*.swp
 /Simulation/*.Rout
+/Simulation/*.swp
 .Rproj.user
