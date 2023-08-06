@@ -3,23 +3,32 @@ library(scoringRules)
 library(mvtnorm)
 library(tmvtnorm)
 library(HDInterval)
+library(posterior)
 source("KRSW/RevExp_U_Functions.r")
 source("KRSW/CommonFunctions.r")
+source("KRSW/ModelDiagnosticsNewNames.r")
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 
 
-##################################--------
-load(file=file.path(dir.out, 'Scenario_1.1_itr1_20_lamfix.RData'))
-chain_out <- chain_res
+##################################Scenario 1#########################
+load(file=file.path(dir.out, 'Scenario_1.2_itr1_20_lamfix.RData'))
+chain_out1 <- chain_res
+# 
+# load(file=file.path(dir.out, 'Scenario_1.1_itr21_100_lamfix.RData'))
+# chain_out2 <- chain_res
+# chain_out <- c(chain_out1,chain_out2)
+
+chain_out <- chain_out1
 
 para.name <- colnames(chain_out[[1]][[1]]$samples)
 post.mean.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
 colnames(post.mean.mat) <- para.name
 cover.ind.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
 colnames(cover.ind.mat) <- para.name
-
-for (itr in 1:20){
+ci.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
+max_rhat <- rep(NA, length(chain_out))
+for (itr in 1:length(chain_out)){
   rhat.seq <- c()
   ess.seq <- c()
   for (name in para.name){
@@ -31,7 +40,7 @@ for (itr in 1:20){
     ess.seq <- c(ess.seq, ess_basic(post.sp))
   }
   convg.stat <- data.frame(para.name,rhat.seq,ess.seq )
-  convg.stat
+  max_rhat[itr] <- max(convg.stat$rhat.seq,na.rm = T)
   
   samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
                        chain_out[[itr]][[2]]$samples[,],
@@ -43,7 +52,9 @@ for (itr in 1:20){
   a <- c(0.5, 1.2)
   beta <- c(0, 0)
   sig <- c(0.5, 1.2)
-  gamma <- c(0.3, 0.1)
+  # gamma <- c(0.3, 0.1)
+  gamma <- c(0.2, -0.2)
+  # gamma <- c(-0.1, -0.3)
   mu <- c(3.5, 4.0)
   sd1 <- 1
   sd2 <- 1.5
@@ -61,9 +72,15 @@ for (itr in 1:20){
   cover.ind <- (true.para >= post.lb)&(true.para <= post.ub)
   # print(cover.ind)
   cover.ind.mat[itr, ] <- cover.ind
+  ci.mat[itr,] <- post.ub-post.lb
 }
 
+
 avg.post.mean <- colMeans(post.mean.mat)
+avg.ci.length <- colMeans(ci.mat)
+
+coverage.rate <- colSums(cover.ind.mat)/length(chain_out)
+max_rhat
 
 plot(samples.all[,'thres[2]'],type='l')
 plot(density(samples.all[,'thres[2]']))
@@ -71,11 +88,106 @@ plot(density(samples.all[,'thres[2]']))
 plot((chain_out[[2]][[2]]$samples[,'thres[2]']),type='l')
 
 
+set.seed(1234)
+seq <- rep(NA,1000)
+for (n in 1:1000){
+  seq[n] <- sum(runif(n)<0.95)/n
+}
+plot(seq, type='l')
 
 
+##################################Scenario 2#########################
+load(file=file.path(dir.out, 'Scenario_2_itr1_20_lamfix_AFSlice.RData'))
+
+chain_out <- chain_res
+para.name <- colnames(chain_out[[1]][[1]]$samples)
+post.mean.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
+colnames(post.mean.mat) <- para.name
+cover.ind.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
+colnames(cover.ind.mat) <- para.name
+ci.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
+max_rhat <- rep(NA, length(chain_out))
+for (itr in 1:length(chain_out)){
+  rhat.seq <- c()
+  ess.seq <- c()
+  for (name in para.name){
+    post.sp <- cbind(chain_out[[itr]][[1]]$samples[,name],
+                     chain_out[[itr]][[2]]$samples[,name],
+                     chain_out[[itr]][[3]]$samples[,name]
+    )
+    rhat.seq <- c(rhat.seq, rhat(post.sp))
+    ess.seq <- c(ess.seq, ess_basic(post.sp))
+  }
+  convg.stat <- data.frame(para.name,rhat.seq,ess.seq )
+  max_rhat[itr] <- max(convg.stat$rhat.seq,na.rm = T)
+  
+  samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
+                       chain_out[[itr]][[2]]$samples[,],
+                       chain_out[[itr]][[3]]$samples[,])
+}
+
+plot(samples.all[,'theta[2]'],type='l')
+plot(chain_out[[itr]][[3]]$samples[,'thres[1]'],type='l')
+
+plot(density(samples.all[,'thres[1]']))
 
 
+d <- 2
+mu <- c(3.5, 4.0)
+sd1 <- 1
+sd2 <- 1.5
+rho <- 0.7
+sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+n <- 20000
+set.seed(itr)
+Y <- rmvnorm(n, mean=mu, sigma=sigma)
+chiplot(Y,ask=F)
+chiPlot(Y,qmin=0.75,qmax=0.999, nsim=10, ylabel='123')
 
+MGPD.diag.RevExpU(Y, a=c(2,3),beta=c(0,0),marg.scale=c(0.4,0.5), marg.shape=c(0.2,0),chiylabel='123',nsim = 10000)
+
+nsim <- 10000
+a=c(samples.all[1,'theta[1]'], samples.all[1,'theta[2]'])
+lam <- c(1,1)
+W<-W2<-matrix(0,ncol=d,nrow=nsim)
+for(i in 1:nsim)
+{
+  W[i,]<-runif(d)^a / lam 
+}
+EW<-apply(W,2,mean)
+for(j in 1:d)
+{
+  W2[,j]<-W[,j]/EW[j]
+}
+chi.est<-mean(apply(W2[,1:2],1,min))
+
+# theorical chi 
+chi.thy <- function(a){
+  a1 <- max(1/a)
+  a2 <- min(1/a)
+  chi <- 1 - ((1+1/a1)/(1+1/a2))^(1+a2)*a1/a2/(1+a1+a2)
+  return(chi)
+}
+chi.thy(a)
+
+chi.thy2 <- function(a){
+  a1 <- min(a)
+  a2 <- max(a)
+  chi <- 1 - ((1+a1)/(1+a2))^(1+1/a2)*a2/a1*a1*a2/(a1*a2+a1+a2)
+  return(chi)
+}
+chi.thy2(a)
+
+chi <- apply(samples.all[,c('theta[1]','theta[2]')], 1, chi.thy)
+
+
+Y.tail<-sim.RevExpU.MGPD(n=10000,d=d, a=a, beta=c(0,0), sig=c(0.2,0.2), gamma=c(0.1,0.1), MGPD = T,std=T)
+
+chiplot(Y.tail$X,ask=F)
+chiplot(Y.tail$Z,ask=F)
+chiplot(Y,ask=F)
+
+chiEmp(data=Y,nq=100,qmin=0.50,qmax=0.999)
 
 post.pred <- function(n, samples){
   Y.pred <- matrix(NA,nrow=n, ncol=2)
