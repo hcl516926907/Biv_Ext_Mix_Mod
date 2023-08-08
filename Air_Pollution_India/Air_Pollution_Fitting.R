@@ -35,8 +35,6 @@ for (col in c('PM2.5','Ozone','NO','NO2','NOx','NH3',"PM10",'WS',"WD")){
   pollute[,col] <- as.numeric(pollute[,col])
 }
 
-pollute[is.na(pollute[,'PM2.5']),]
-
 
 pollute.max <- pollute %>% group_by(To.Date)%>% 
   summarise(PM2.5=max(PM2.5, na.rm=T),
@@ -51,6 +49,8 @@ pm2.5_no2 <- pollute.max %>%
   filter_at(vars(PM2.5,NO2), all_vars(!is.infinite(.))) %>% 
   select(PM2.5,NO2)
 print(dim(pm2.5_no2))
+
+
 NumberOfCluster <- 3
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
@@ -61,10 +61,10 @@ t1 <- Sys.time()
 chain_res <-
   foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     
-    run_MCMC_parallel(seed=j, dat=pm2.5_no2, niter=60000, nburnin = 40000, thin=10)
+    run_MCMC_parallel(seed=j, dat=pm2.5_no2, niter=30000, nburnin = 20000, thin=10)
   }
 stopCluster(cl)
 t2 <- Sys.time()
 print(t2-t1)
 
-save(chain_res, file=file.path(dir.out, filename='Air_pollution_mvtn_0.5_0.99.RData'))
+save(chain_res, file=file.path(dir.out, filename='Air_pollution_mvtn_0.6_0.99_AFSlice.RData'))

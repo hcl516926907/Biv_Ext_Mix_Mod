@@ -354,8 +354,11 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
       thres[i] ~ T(dnorm(mu.thres[i], sd=sd.thres[i]),min.thres[i],max.thres[i])
     
     if (station.ind){
+      # priors for a
+      for (i in 1:2)
+        theta[i] ~ dunif(0,50)
       # priors for sig
-      for (i in 1:5)
+      for (i in 3:5)
         theta[i] ~ dunif(0,500)
       # priors for gamma 
       for (i in 6:7)
@@ -391,7 +394,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
                                                                 X = matrix(1,nrow=nrow(dat),ncol=2),
                                                                 mu.thres = apply(dat,2,quantile,0.9),#90 quantile
                                                                 sd.thres = c(500,500), 
-                                                                min.thres = apply(dat,2,quantile,0.5),
+                                                                min.thres = apply(dat,2,quantile,0.6),
                                                                 max.thres = apply(dat,2,quantile,0.99),
                                                                 mu_beta = rep(0,2),
                                                                 cov_beta = 100*diag(2),
@@ -407,8 +410,8 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
   
   BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                  enableWAIC = TRUE, time=TRUE)
-  # BivExtMixconf$removeSamplers(c('theta[1:7]', 'thres[1:2]'))
-  # BivExtMixconf$addSampler(target = c('theta[1:7]', 'thres[1:2]'), type = 'AF_slice')
+  BivExtMixconf$removeSamplers(c('theta[1:7]', 'thres[1:2]'))
+  BivExtMixconf$addSampler(target = c('theta[1:7]', 'thres[1:2]'), type = 'AF_slice')
   
   BivExtMixMCMC <- buildMCMC(BivExtMixconf)
   # BivExtMixMCMC$run(1)
