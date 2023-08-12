@@ -45,26 +45,46 @@ pollute.max <- pollute %>% group_by(To.Date)%>%
             NH3=max(NH3, na.rm=T),
             PM10=max(PM10, na.rm=T))
 
+pollute.mean <- pollute %>% group_by(To.Date)%>% 
+  summarise(PM2.5=mean(PM2.5, na.rm=T),
+            Ozone=mean(Ozone, na.rm=T),
+            NO=mean(NO, na.rm=T),
+            NO2=mean(NO2, na.rm=T),
+            NOx=mean(NOx, na.rm=T),
+            NH3=mean(NH3, na.rm=T),
+            PM10=mean(PM10, na.rm=T))
+
 pm2.5_no2 <- pollute.max %>% 
   filter_at(vars(PM2.5,NO2), all_vars(!is.infinite(.))) %>% 
   select(PM2.5,NO2)
 print(dim(pm2.5_no2))
+plot(pm2.5_no2)
 
+pm2.5_no2_mean <- pollute.mean %>% 
+  filter_at(vars(PM2.5,NO2), all_vars(!is.na(.))) %>% 
+  select(PM2.5,NO2)
+print(dim(pm2.5_no2_mean))
+plot(pm2.5_no2_mean)
+
+pm2.5_no2_scale <- scale(pm2.5_no2, center=FALSE)
 
 NumberOfCluster <- 3
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
 
 source(file.path(dir.work, 'Air_Pollution_India/BEMM_Functions_Air_Pollution.R'))
+# source(file.path(dir.work, 'Air_Pollution_India/BEMM_Functions_Air_Pollution_Scale.R'))
 
 t1 <- Sys.time()
 chain_res <-
   foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     
-    run_MCMC_parallel(seed=j, dat=pm2.5_no2, niter=30000, nburnin = 20000, thin=10)
+    run_MCMC_parallel(seed=j, dat=pm2.5_no2_mean, niter=20000, nburnin = 10000, thin=10)
   }
 stopCluster(cl)
 t2 <- Sys.time()
 print(t2-t1)
 
-save(chain_res, file=file.path(dir.out, filename='Air_pollution_mvtn_0.6_0.99_AFSlice.RData'))
+# save(chain_res, file=file.path(dir.out, filename='Air_pollution_mvtn_0.6_0.99_AFSlice.RData')) # daily maxima
+# save(chain_res, file=file.path(dir.out, filename='Air_pollution_mvtn_0.6_0.99_Scale.RData'))
+save(chain_res, file=file.path(dir.out, filename='Air_pollution_mvtn_0.6_0.99_AFSlice_daily_mean.RData'))
