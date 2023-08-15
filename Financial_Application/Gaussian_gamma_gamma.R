@@ -323,4 +323,5 @@ print(t2-t1)
 dir.out <- '/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/financial_application'
 # save(results, file=file.path(dir.out, 'dax_cac_gaussian_gamma_gamma_thres_0.8_0.99.RData'))
 
-plot(results$samples[,'params[5]'],type='l')
+load(file=file.path(dir.out, 'dax_cac_gaussian_gamma_gamma_thres_0.8_0.99.RData'))
+plot(results$samples[,'thres[2]'],type='l')
