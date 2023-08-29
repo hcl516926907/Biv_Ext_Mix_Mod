@@ -34,7 +34,7 @@ source(file.path(dir.work, 'Simulation/BEMM_Functions.R'))
 
 t1 <- Sys.time()
 chain_res <-
-  foreach(i = c(21:100)) %:%
+  foreach(i = c(251:300)) %:%
   foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     seed <- i
     d <- 2
@@ -64,8 +64,12 @@ chain_res <-
     Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
     run_MCMC_parallel(seed=j, dat=Y, niter=30000, nburnin = 20000, thin=10)
   }
+stopCluster(cl)
 
-save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr21_100_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr101_150_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr151_200_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr201_250_lamfix.RData'))
+save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr251_300_lamfix.RData'))
 t2 <- Sys.time()
 print(t2-t1)
 

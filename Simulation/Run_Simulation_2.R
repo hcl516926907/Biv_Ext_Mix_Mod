@@ -30,11 +30,11 @@ NumberOfCluster <- 40
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
 
-source(file.path(dir.work, 'Simulation/BEMM_Functions.R'))
+source(file.path(dir.work, 'Simulation/BEMM_Functions_AFSlice.R'))
 
 t1 <- Sys.time()
 chain_res <-
-  foreach(i = c(1:20)) %:%
+  foreach(i = 276:300) %:%
   foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     seed <- i
     d <- 2
@@ -44,12 +44,28 @@ chain_res <-
     rho <- 0.7
     sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
     n <- 2000
+    set.seed(seed)
     Y <- rmvnorm(n, mean=mu, sigma=sigma)
 
-    run_MCMC_parallel(seed=j, dat=Y, niter=30000, nburnin = 20000, thin=10)
+    run_MCMC_parallel(seed=j, dat=Y, nburnin=20000, niter=30000, thin=10)
   }
+stopCluster(cl)
 
-save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr1_20_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr1_20_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_lamfix_APT.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr1_20_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr21_50_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr51_75_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr76_100_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr101_125_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr126_150_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr151_175_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr176_200_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr201_225_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr226_250_lamfix_AFSlice.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr251_275_lamfix_AFSlice.RData'))
+save(chain_res,  file=file.path(dir.out, filename='Scenario_2_itr276_300_lamfix_AFSlice.RData'))
 t2 <- Sys.time()
 print(t2-t1)
 
+#itr=8 could be an example to show the power of AFSlice sampler.
