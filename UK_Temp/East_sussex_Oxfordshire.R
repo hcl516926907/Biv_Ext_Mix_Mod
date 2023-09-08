@@ -87,4 +87,5 @@ stopCluster(cl)
 t2 <- Sys.time()
 print(t2-t1)
 
-save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99.RData'))
+# save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99.RData'))
+save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v1.RData')) # v1 corrects the prior of the mu.

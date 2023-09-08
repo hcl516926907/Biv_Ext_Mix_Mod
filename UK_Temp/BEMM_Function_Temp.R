@@ -348,7 +348,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
     U[1:D,1:D] <- uppertri_mult_diag(Ustar[1:D, 1:D], sds[1:D])
     
     for (i in 1:D)
-      mu[i] ~ T(dnorm(0, sd=50),0,)
+      mu[i] ~ dnorm(0, sd=50)
     
     for (i in 1:D)
       thres[i] ~ T(dnorm(mu.thres[i], sd=sd.thres[i]),min.thres[i],max.thres[i])
