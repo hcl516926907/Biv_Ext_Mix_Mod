@@ -2,7 +2,7 @@ dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Plots"
 source(file.path(dir.work, "KRSW/RevExp_U_Functions.r"))
 source(file.path(dir.work, "KRSW/CommonFunctions.r"))
-
+source(file.path(dir.work, "Simulation/CommonFunctions.r"))
 # install_load_packages <- function(packages) {
 #   nodename <- Sys.info()['nodename']
 #   lib_path <- file.path("/home/pgrad2/2448355h/R/library", nodename)
@@ -130,3 +130,258 @@ segments(x0=min(Y)-10, y0= u.x[2], x1=u.x[1], y1=u.x[2])
 segments(x0=eta[1],y0=min(Y)-10, x1=eta[1],y1=eta[2], lty=2)
 segments(x0=min(Y)-10, y0= eta[2], x1=eta[1], y1=eta[2],lty=2)
 dev.off()
+
+
+
+######################contour plot###############
+
+library(ggplot2)
+
+R_pmnorm_chol <- function(lower, upper, mean, cholesky){
+  sigma <- t(cholesky) %*% cholesky
+  return(pmvnorm(lower=lower, upper=as.vector(upper), mean=as.vector(mean), sigma=sigma, keepAttr = F))
+}
+
+
+R_dmvnorm_chol <- function(x, mean, cholesky, log){
+  sigma <- t(cholesky) %*% cholesky
+  dvect <- dmvnorm(x, mean=mean, sigma=sigma, log=log)
+  if (log) {
+    return(sum(dvect))
+  }else{
+    return(prod(dvect))
+  }
+  
+}
+
+
+pmnorm_chol <- nimbleRcall(function(lower = double(1), upper = double(1), 
+                                    mean=double(1),cholesky=double(2)){}, 
+                           Rfun = 'R_pmnorm_chol',
+                           returnType = double(0))
+
+
+
+dmvnorm_chol <- nimbleRcall(function(x = double(2), mean = double(1), 
+                                     cholesky=double(2),log=logical(0, default = 0)){}, 
+                            Rfun = 'R_dmvnorm_chol',
+                            returnType = double(0))
+
+
+
+nll.powunif.GPD.1<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
+{ 
+  x.mat.ind <- 1
+  if (is.null(dim(x))){
+    d <- length(x)
+    x.mat.ind <- 0
+  }else{
+    d<-dim(x)[2]
+  }
+  
+  a<-theta[a.ind]
+  if(length(a)==1)
+  {
+    a<-rep(a,d)
+  }
+  
+  if(lamfix){
+    lam<-rep(1,d)
+  }else{
+    lam<-c(theta[lam.ind],1)
+  }
+  
+  if(balthresh){
+    lam<-1/(1+a)
+  }
+  
+  sig<-theta[sig.ind]
+  gamma<-theta[gamma.ind]
+  
+  sig<-sig[marg.scale.ind]
+  gamma<-gamma[marg.shape.ind]
+  
+  rej<-NULL
+  # upper bound when xi is greater than 0
+  if(x.mat.ind){
+    for(j in 1:d)
+    {
+      rej[j]<- gamma[j]<0 && any(x[,j]>-sig[j]/gamma[j])
+    }
+  }else{
+    for(j in 1:d)
+    {
+      rej[j]<- gamma[j]<0 && any(x[j]>-sig[j]/gamma[j])
+    }
+  }
+  
+  if(any(lam<0.01)||any(a<=0.01)||any(sig<=0.001)||any(rej)){return(10e7)}
+  
+  nll.uc <- 0
+  nll.pc <- 0
+  if (!x.mat.ind){
+    uc <- comp.gt(x, u)
+    if (uc){
+      L <- fX.powunif(x=x, a=a, lam=lam, sig=sig, gamma=gamma)
+      nll.uc <- -log(L)
+    }else{
+      L2 <- fX.powunif.cens(x=x, u=u, lam=lam, a=a, sig=sig, gamma=gamma)
+      nll.pc <- -log(L2)
+    }
+  }else{
+    uc<-apply(x,1,comp.gt,u=u)
+    
+    x.uc<-x[uc,]
+    x.pc<-x[!uc,]
+    
+    L<-apply(x.uc,1,fX.powunif,a=a,lam=lam,sig=sig,gamma=gamma)
+    nll.uc<--sum(log(L))
+    
+    if(sum(!uc)>0)
+    {
+      L2<-apply(x.pc,1,fX.powunif.cens,a=a,lam=lam,u=u,sig=sig,gamma=gamma)
+      nll.pc<--sum(log(L2))
+    }
+  }
+  if (is.nan(nll.uc)|is.nan(nll.pc)|(nll.uc==-Inf)|(nll.uc==Inf)){
+    return(10e7)
+  }
+  nll<-nll.uc+nll.pc
+  
+  return(nll)
+}
+
+
+
+
+
+nim_nll_powunif_GPD_SG <- nimbleRcall(function(theta=double(1), x=double(1), u=double(0), a.ind=double(1),
+                                               lam.ind=double(0), sig.ind=double(1), gamma.ind=double(1), 
+                                               lamfix=logical(0, default = 0), balthresh=logical(0, default = 0), 
+                                               marg.scale.ind=double(1), marg.shape.ind=double(1)){}, 
+                                      Rfun = 'nll.powunif.GPD.1',
+                                      returnType = double(0))
+
+nim_nll_powunif_GPD_MAT <- nimbleRcall(function(theta=double(1), x=double(2), u=double(0), a.ind=double(1),
+                                                lam.ind=double(0), sig.ind=double(1), gamma.ind=double(1), 
+                                                lamfix=logical(0, default = 0), balthresh=logical(0, default = 0), 
+                                                marg.scale.ind=double(1), marg.shape.ind=double(1)){}, 
+                                       Rfun = 'nll.powunif.GPD.1',
+                                       returnType = double(0))
+dbiextmix <- nimbleFunction(
+  run = function(x=double(2), theta=double(1), thres=double(1), mu=double(1), 
+                 cholesky=double(2), D=integer(0, default=2),
+                 a.ind=double(1), lam.ind=double(0), lamfix=logical(0, default = 0), 
+                 sig.ind=double(1), gamma.ind=double(1),
+                 log = logical(0, default = 0)) {
+    returnType(double(0))
+    
+    cond <- (x[,1]>thres[1]) | (x[,2]>thres[2])
+    n.tail <- sum(cond)
+    n.bulk <- sum(!cond)
+    y.tail <- matrix(c(x[cond,1] - thres[1], x[cond,2] - thres[2]), ncol=D)
+    y.bulk <- x[!cond,]
+    
+    pi <- pmnorm_chol(lower=rep(-Inf,D), upper=thres, mean=mu, cholesky = cholesky)
+    
+    sig <- theta[sig.ind]
+    gamma <- theta[gamma.ind]
+    eta <- -sig/gamma
+    eta[which(gamma<=0)] <- -Inf
+    
+    dtail <- 0
+    dbulk <- 0
+    
+    if (n.tail>0){
+      y.min <- eta
+      for (i in 1:D){
+        y.min[i] <- min(y.tail[,i])
+      }
+      if (all(y.min>eta)){
+        llt <- -nim_nll_powunif_GPD_MAT(x=y.tail, theta=theta, u=min(y.tail)-0.01, a.ind=a.ind,
+                                        lam.ind=lam.ind, sig.ind=sig.ind, gamma.ind=gamma.ind, 
+                                        lamfix=lamfix, balthresh=FALSE, 
+                                        marg.scale.ind=1:2, marg.shape.ind=1:2)
+        if (log){
+          dtail <- llt
+        }else{
+          dtail <- exp(llt)
+        }
+      }else{
+        if (log) dtail <- -10^10
+      }
+    }
+    
+    if (n.bulk>0){
+      dbulk <- dmvnorm_chol(y.bulk, mean=mu, cholesky = cholesky, log = log )
+    }
+    
+    if (log) {
+      totalProb <- n.tail*log(1-pi) + dtail + dbulk
+    }else{
+      totalProb <- (1-pi)^n.tail *dtail*dbulk
+    }
+    
+    return(totalProb)
+  })
+
+
+mu <- c(3.5, 4.0)
+sd1 <- 1
+sd2 <- 1.5
+rho <- 0.7
+sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+
+dbiextmix(matrix(c(1,2),nrow=1), theta=c(2,2,1,0.5,0.5,0.1,0.1),thres=c(5.5,6.7),mu=c(3.5,4),
+          cholesky = chol(sigma),D=2,a.ind=c(1,2),lam.ind=3,lamfix=T,
+          sig.ind=4:5,gamma.ind=6:7, log=T)
+
+log_likelihood <- function(x){
+  Y <- rbind(x,x)
+  a <- c(0.9, 1.4)
+  sig <- c(0.5, 0.4)
+  gamma <- c(0.3, -0.2)
+  theta <- c(a,1,sig,gamma)
+  thres <- c(5.5, 6.7)
+  mu <- c(3.5,4)
+  sd1 <- 1
+  sd2 <- 1.5
+  rho <- 0.7
+  sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+  ll <- dbiextmix(Y, theta=theta,thres=thres,mu=mu,
+            cholesky = chol(sigma),D=2,a.ind=1:2,lam.ind=3,lamfix=T,
+            sig.ind=4:5,gamma.ind=6:7, log=T)
+  return(ll/2)
+  
+}
+
+# log_likelihood <- function(x, y) {
+#   # Here, we assume a simple bivariate Gaussian distribution for illustration.
+#   # Replace this function with your specific log-likelihood computation.
+#   return(-0.5 * (x^2 + y^2 + 2 * 0.5 * x * y))
+# }
+
+# Step 2: Create a grid of x and y values
+x_seq <- seq(0, 10, length.out = 100)
+y_seq <- seq(0, 10, length.out = 100)
+grid <- expand.grid(x = x_seq, y = y_seq)
+
+# Step 3: Evaluate the log-likelihood over the grid
+grid$ll <- apply(grid,1,log_likelihood)
+
+# Step 4: Exponentiate to get the density
+grid$density <- exp(grid$ll)
+
+# Step 5: Create the contour plot
+ggplot(grid, aes(x = x, y = y, z = density)) +
+  geom_contour(aes(color = ..level..)) +
+  scale_color_continuous(low = "blue", high = "red") +
+  geom_segment(aes(x = 5.5, y = 0.8, xend = 5.5, yend = 6.7), color = "black", linetype = "dashed") +
+  geom_segment(aes(x = 1.3, y = 6.7, xend = 5.5, yend = 6.7), color = "black", linetype = "dashed") +
+  labs(x = "X1",
+       y = "X2",
+       color = "Density") +
+  theme_minimal()
+
+
+
