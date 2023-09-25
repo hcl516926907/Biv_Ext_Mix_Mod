@@ -4,22 +4,64 @@ library(mvtnorm)
 library(tmvtnorm)
 library(HDInterval)
 library(posterior)
+library(latex2exp)
 source("KRSW/RevExp_U_Functions.r")
 source("KRSW/CommonFunctions.r")
 source("KRSW/ModelDiagnosticsNewNames.r")
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 
+#################################Used functions#######################
+post.pred <- function(n, samples, seed=1234){
+  set.seed(seed)
+  Y.pred <- matrix(NA,nrow=n, ncol=2)
+  idx <- sample(nrow(samples),size=n, replace=TRUE)
+  d <- 2
+  for (i in 1:length(idx)){
+    a <-  samples[idx[i], c('theta[1]','theta[2]')]
+    sig <- samples[idx[i], c('theta[4]','theta[5]')]
+    gamma <- samples[idx[i], c('theta[6]','theta[7]')]
+    mu <- samples[idx[i], c('mu[1]','mu[2]')]
+    sd1 <- samples[idx[i], 'sds[1]']
+    sd2 <- samples[idx[i], 'sds[2]']
+    corr.chol <- matrix(samples[idx[i],c('Ustar[1, 1]','Ustar[2, 1]',
+                                         'Ustar[1, 2]','Ustar[2, 2]')],ncol=2)
+    sigma <- diag(c(sd1,sd2))%*%t(corr.chol)%*%corr.chol%*%diag(c(sd1,sd2))
+    thres <- samples[idx[i], c('thres[1]','thres[2]')]
+    p <- pmvnorm( upper=thres, mean=mu, sigma=sigma, keepAttr = F)
+    u <- runif(1)
+    if (u<p){
+      Y.pred[i,] <- rtmvnorm(1, mean=mu, sigma=sigma,upper=thres)
+    }else{
+      Y.tail <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)$X
+      Y.pred[i,] <- thres + Y.tail
+    }
+  }
+  return(Y.pred)
+}
 
 ##################################Scenario 1#########################
-load(file=file.path(dir.out, 'Scenario_1.2_itr1_20_lamfix.RData'))
-chain_out1 <- chain_res
-# 
-# load(file=file.path(dir.out, 'Scenario_1.1_itr21_100_lamfix.RData'))
-# chain_out2 <- chain_res
-# chain_out <- c(chain_out1,chain_out2)
+ver <- '1.2'
 
-chain_out <- chain_out1
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr1_20_lamfix.RData',sep='')))
+chain_out1 <- chain_res
+
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr21_100_lamfix.RData',sep='')))
+chain_out2 <- chain_res
+
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr101_150_lamfix.RData',sep='')))
+chain_out3 <- chain_res
+
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr151_200_lamfix.RData',sep='')))
+chain_out4 <- chain_res
+
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr201_250_lamfix.RData',sep='')))
+chain_out5 <- chain_res
+
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr251_300_lamfix.RData',sep='')))
+chain_out6 <- chain_res
+
+chain_out <- c(chain_out1,chain_out2,chain_out3, chain_out4, chain_out5, chain_out6)
 
 para.name <- colnames(chain_out[[1]][[1]]$samples)
 post.mean.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
@@ -28,6 +70,7 @@ cover.ind.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
 colnames(cover.ind.mat) <- para.name
 ci.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
 max_rhat <- rep(NA, length(chain_out))
+Y.pred.list <- list()
 for (itr in 1:length(chain_out)){
   rhat.seq <- c()
   ess.seq <- c()
@@ -46,15 +89,17 @@ for (itr in 1:length(chain_out)){
                        chain_out[[itr]][[2]]$samples[,],
                        chain_out[[itr]][[3]]$samples[,]
                        )
-
-  
   # True parameters
   a <- c(0.5, 1.2)
   beta <- c(0, 0)
   sig <- c(0.5, 1.2)
-  # gamma <- c(0.3, 0.1)
-  gamma <- c(0.2, -0.2)
-  # gamma <- c(-0.1, -0.3)
+  if (ver=='1.1'){
+    gamma <- c(0.3, 0.1)
+  }else if(ver=='1.2'){
+    gamma <- c(0.2, -0.2)
+  }else{
+    gamma <- c(-0.1, -0.3) 
+  }
   mu <- c(3.5, 4.0)
   sd1 <- 1
   sd2 <- 1.5
@@ -82,10 +127,10 @@ avg.ci.length <- colMeans(ci.mat)
 coverage.rate <- colSums(cover.ind.mat)/length(chain_out)
 max_rhat
 
-plot(samples.all[,'thres[2]'],type='l')
+plot(samples.all[,'theta[7]'],type='l')
 plot(density(samples.all[,'thres[2]']))
 
-plot((chain_out[[2]][[2]]$samples[,'thres[2]']),type='l')
+plot((chain_out[[2]][[2]]$samples[,'theta[3]']),type='l')
 
 
 set.seed(1234)
@@ -94,7 +139,33 @@ for (n in 1:1000){
   seq[n] <- sum(runif(n)<0.95)/n
 }
 plot(seq, type='l')
+abline(v=150,col='red')
 
+para.name <- c('Ustar_1_1', 'Ustar_2_1', 'Ustar_1_2','Ustar_2_2','mu_1','mu_2','s_1','s_2','a_1','a_2','lam','sigma_1',
+               'sigma_2','gamma_1','gamma_2','u_1','u_2')
+group.name <- c(rep('bulk',8),rep('tail',7),rep('thres',2))
+df.para.plot <- data.frame()
+for (i in 1:length(para.name)){
+  df.tmp <- data.frame(est=post.mean.mat[,i])
+  df.tmp$name <- para.name[i]
+  df.tmp$tv <- true.para[i]
+  df.tmp$group <- group.name[i]
+  df.para.plot <- rbind(df.para.plot,df.tmp)
+}
+df.para.plot$name <- factor(df.para.plot$name,     # Reorder factor levels
+                            para.name)
+df.para.plot <- df.para.plot[!(df.para.plot$name %in% c('lam','Ustar_1_1','Ustar_2_1')),]
+facet.name <- paste(para.name," (",round(coverage.rate,2),")", sep='')
+facet.name <- facet.name[which(!(para.name  %in% c('lam','Ustar_1_1','Ustar_2_1')) )]
+names(facet.name) <- para.name[which(!(para.name  %in% c('lam','Ustar_1_1','Ustar_2_1')) )]
+
+ggplot(df.para.plot, aes(x=name, y=est,col=group)) +
+  geom_boxplot()+
+  geom_point(aes(x=name, y=tv),size=1,col='black')+
+  # facet_wrap(~ name, scales="free", nrow=3, labeller = labeller(name = custom_labeller)) +
+  facet_wrap(~ name, scales="free", nrow=3, labeller = labeller(name = facet.name)) +
+  labs(x='parameter',y='posterior mean')+
+  theme(axis.text.x=element_blank())
 
 ##################################Scenario 2#########################
 load(file=file.path(dir.out, 'Scenario_2_itr1_20_lamfix_AFSlice.RData'))
@@ -126,194 +197,243 @@ for (itr in 1:length(chain_out)){
                        chain_out[[itr]][[3]]$samples[,])
 }
 
-plot(samples.all[,'theta[2]'],type='l')
+plot(samples.all[,'theta[6]'],type='l')
 plot(chain_out[[itr]][[3]]$samples[,'thres[1]'],type='l')
 
 plot(density(samples.all[,'thres[1]']))
 
 
-d <- 2
-mu <- c(3.5, 4.0)
-sd1 <- 1
-sd2 <- 1.5
-rho <- 0.7
-sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
-n <- 20000
-set.seed(itr)
-Y <- rmvnorm(n, mean=mu, sigma=sigma)
-chiplot(Y,ask=F)
-chiPlot(Y,qmin=0.75,qmax=0.999, nsim=10, ylabel='123')
 
-MGPD.diag.RevExpU(Y, a=c(2,3),beta=c(0,0),marg.scale=c(0.4,0.5), marg.shape=c(0.2,0),chiylabel='123',nsim = 10000)
-
-nsim <- 10000
-a=c(samples.all[1,'theta[1]'], samples.all[1,'theta[2]'])
-lam <- c(1,1)
-W<-W2<-matrix(0,ncol=d,nrow=nsim)
-for(i in 1:nsim)
-{
-  W[i,]<-runif(d)^a / lam 
-}
-EW<-apply(W,2,mean)
-for(j in 1:d)
-{
-  W2[,j]<-W[,j]/EW[j]
-}
-chi.est<-mean(apply(W2[,1:2],1,min))
-
-# theorical chi 
-chi.thy <- function(a){
-  a1 <- max(1/a)
-  a2 <- min(1/a)
-  chi <- 1 - ((1+1/a1)/(1+1/a2))^(1+a2)*a1/a2/(1+a1+a2)
-  return(chi)
-}
-chi.thy(a)
-
-chi.thy2 <- function(a){
-  a1 <- min(a)
-  a2 <- max(a)
-  chi <- 1 - ((1+a1)/(1+a2))^(1+1/a2)*a2/a1*a1*a2/(a1*a2+a1+a2)
-  return(chi)
-}
-chi.thy2(a)
-
-chi <- apply(samples.all[,c('theta[1]','theta[2]')], 1, chi.thy)
+source("Simulation/Functions.R")
+load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_80.RData'))
 
 
-Y.tail<-sim.RevExpU.MGPD(n=10000,d=d, a=a, beta=c(0,0), sig=c(0.2,0.2), gamma=c(0.1,0.1), MGPD = T,std=T)
+Kconst<-NULL
+est<-matrix(NA,ncol=4,nrow=length(outputM1))
+surv<-list()
+# for(i in 1:length(outputM1)){
+#   est[i,]<-outputM1[[i]][[1]]
+#   Kconst[i]<-outputM1[[i]][[5]]
+#   surv[[i]]<-outputM1[[i]][[6]]
+# }
 
-chiplot(Y.tail$X,ask=F)
-chiplot(Y.tail$Z,ask=F)
-chiplot(Y,ask=F)
-
-chiEmp(data=Y,nq=100,qmin=0.50,qmax=0.999)
-
-post.pred <- function(n, samples){
-  Y.pred <- matrix(NA,nrow=n, ncol=2)
-  idx <- sample(nrow(samples),size=n, replace=TRUE)
-  d <- 2
-  for (i in 1:length(idx)){
-    a <-  samples[idx[i], c('theta[1]','theta[2]')]
-    beta <-  c(log(samples[idx[i], 'theta[3]']), 0)
-    sig <- samples[idx[i], c('theta[4]','theta[5]')]
-    gamma <- samples[idx[i], c('theta[6]','theta[7]')]
-    mu <- samples[idx[i], c('mu[1]','mu[2]')]
-    sd1 <- samples[idx[i], 'sds[1]']
-    sd2 <- samples[idx[i], 'sds[2]']
-    corr.chol <- matrix(samples[idx[i],c('Ustar[1, 1]','Ustar[2, 1]',
-                                    'Ustar[1, 2]','Ustar[2, 2]')],ncol=2)
-    sigma <- diag(c(sd1,sd2))%*%t(corr.chol)%*%corr.chol%*%diag(c(sd1,sd2))
-    thres <- samples[idx[i], c('thres[1]','thres[2]')]
-    p <- pmvnorm(lower=rep(0,2), upper=thres, mean=mu, sigma=sigma, keepAttr = F)
-    u <- runif(1)
-    if (u<p){
-      Y.pred[i,] <- rtmvnorm(1, mean=mu, sigma=sigma, lower=c(0,0),upper=thres)
-    }else{
-      Y.tail <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)$X
-      Y.pred[i,] <- thres + Y.tail
-    }
+# surv is wrong in itr 1-80. 
+thresh<-seq(0.01,0.99,len=100)
+for(i in 1:length(outputM1)){
+  est[i,]<-outputM1[[i]][[1]]
+  Kconst[i]<-outputM1[[i]][[5]]
+  sur <- rep(NA, length(thresh))
+  parct <- est[i,1]
+  parcb <- est[i,2:3]
+  parweight <- est[i,4]
+  KM1 <- Kconst[i]
+  for (j in 1:length(thresh)){
+    sur[j] <-survivalf(x=thresh[j], parct=parct,parcb=parcb,
+                           ct="InverGumbel",cb="t",weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=parweight,K=KM1) 
   }
-  return(Y.pred)
+  surv[[i]]<-sur
+  print(i)
 }
 
-Y.pred <- post.pred(2000, samples)
-mu <- c(3.5, 4.5)
-sd1 <- 1.22
-sd2 <- 1.10
-rho <- 0.72
-sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
-u.x <- c(5.6, 7)
-
-es <- 0
-es_w1 <- 0
-es_w2 <- 0
-w1 <- rep(NA,nrow(Y.pred))
-for (i in 1:nrow(Y.pred)){
-  w1[i] <- pmvnorm(upper=Y.pred[i,],mean=mu,sigma=sigma , keepAttr=FALSE)
-}
-w1 <- w1/sum(w1)
-w2 <- (Y.pred[,1]>u.x[1])|(Y.pred[,2]>u.x[2])
-w2 <- w2/sum(w2)
-for (i in nrow(Y)){
-  es <- es + es_sample(y = Y[i,], dat = t(Y.pred))
-  es_w1 <- es_w1 + es_sample(y = Y[i,], dat = t(Y.pred), w = w1)
-  es_w2 <- es_w2 + es_sample(y = Y[i,], dat = t(Y.pred), w = w2)
+etau_model.new<-function(thresh,survP){
+  eta_model<-c()
+  for(i in 1:length(thresh)){
+    eta_model[i]<-2*(log(1-thresh[i]))/(log(survP[i]))-1
+  }
+  return(eta_model)
 }
 
-
-print(chiplot(Y))
-chiplot(Y.pred)
-post.pred(10, samples)
-
-chi.value <- function(data, nq=100,qlim=NULL,conf = 0.95){
-  data <- na.omit(data)
-  n <- nrow(data)
-  data <- cbind(rank(data[, 1])/(n + 1), rank(data[, 2])/(n + 
-                                                            1))
-  rowmax <- apply(data, 1, max)
-  rowmin <- apply(data, 1, min)
-  eps <- .Machine$double.eps^0.5
-  qlim2 <- c(min(rowmax) + eps, max(rowmin) - eps)
-  if (!is.null(qlim)) {
-    if (qlim[1] < qlim2[1]) 
-      stop("lower quantile limit is too low")
-    if (qlim[2] > qlim2[2]) 
-      stop("upper quantile limit is too high")
-    if (qlim[1] > qlim[2]) 
-      stop("lower quantile limit is less than upper quantile limit")
-  }else qlim <- qlim2
-  u <- seq(qlim[1], qlim[2], length = nq)
-  cu <- cbaru <- numeric(nq)
-  for (i in 1:nq) cu[i] <- mean(rowmax < u[i])
-  for (i in 1:nq) cbaru[i] <- mean(rowmin > u[i])
-  chiu <- 2 - log(cu)/log(u)
-  chibaru <- (2 * log(1 - u))/log(cbaru) - 1
-  cnst <- qnorm((1 + conf)/2)
-  varchi <- ((1/log(u)^2 * 1)/cu^2 * cu * (1 - cu))/n
-  varchi <- cnst * sqrt(varchi)
-  varchibar <- (((4 * log(1 - u)^2)/(log(cbaru)^4 * cbaru^2)) * 
-                  cbaru * (1 - cbaru))/n
-  varchibar <- cnst * sqrt(varchibar)
-  chiu <- cbind(chilow = chiu - varchi, chi = chiu, chiupp = chiu + 
-                  varchi)
-  chibaru <- cbind(chiblow = chibaru - varchibar, chib = chibaru, 
-                   chibupp = chibaru + varchibar)
-  chiulb <- 2 - log(pmax(2 * u - 1, 0))/log(u)
-  chibarulb <- 2 * log(1 - u)/log(1 - 2 * u + pmax(2 * u -  1, 0)) - 1
-  return(list(chiu,chibaru,u))
+chi0.65<-chi0.7<-chi0.75<-chi0.8<-chi0.85<-chi0.9<-chi0.95<-chi0.99<-eta0.65<-eta0.7<-eta0.75<-eta0.8<-eta0.85<-eta0.9<-eta0.95<-eta0.99<-c()
+for(i in 1:length(outputM1)){
+  chi0.65[i]<-chiu_model(thresh=thresh[66],survP=surv[[i]][66])
+  chi0.7[i]<-chiu_model(thresh=thresh[71],survP=surv[[i]][71])
+  chi0.75[i]<-chiu_model(thresh=thresh[76],survP=surv[[i]][76])
+  chi0.8[i]<-chiu_model(thresh=thresh[81],survP=surv[[i]][81])
+  chi0.85[i]<-chiu_model(thresh=thresh[86],survP=surv[[i]][86])
+  chi0.9[i]<-chiu_model(thresh=thresh[91],survP=surv[[i]][91])
+  chi0.95[i]<-chiu_model(thresh=thresh[96],survP=surv[[i]][96])
+  chi0.99[i]<-chiu_model(thresh=thresh[100],survP=surv[[i]][100])
+  eta0.65[i]<-etau_model.new(thresh=thresh[66],survP=surv[[i]][66])
+  eta0.7[i]<-etau_model.new(thresh=thresh[71],survP=surv[[i]][71])
+  eta0.75[i]<-etau_model.new(thresh=thresh[76],survP=surv[[i]][76])
+  eta0.8[i]<-etau_model.new(thresh=thresh[81],survP=surv[[i]][81])
+  eta0.85[i]<-etau_model.new(thresh=thresh[86],survP=surv[[i]][86])
+  eta0.9[i]<-etau_model.new(thresh=thresh[91],survP=surv[[i]][91])
+  eta0.95[i]<-etau_model.new(thresh=thresh[96],survP=surv[[i]][96])
+  eta0.99[i]<-etau_model.new(thresh=thresh[100],survP=surv[[i]][100])
 }
 
+rho <- 0.7
+chi0.65geral<-(1-2*thresh[66]+pCopula(cbind(thresh[66],thresh[66]),normalCopula(rho)))/(1-thresh[66])
+chi0.7geral<-(1-2*thresh[71]+pCopula(cbind(thresh[71],thresh[71]),normalCopula(rho)))/(1-thresh[71])
+chi0.75geral<-(1-2*thresh[76]+pCopula(cbind(thresh[76],thresh[76]),normalCopula(rho)))/(1-thresh[76])
+chi0.8geral<-(1-2*thresh[81]+pCopula(cbind(thresh[81],thresh[81]),normalCopula(rho)))/(1-thresh[81])
+chi0.85geral<-(1-2*thresh[86]+pCopula(cbind(thresh[86],thresh[86]),normalCopula(rho)))/(1-thresh[86])
+chi0.9geral<-(1-2*thresh[91]+pCopula(cbind(thresh[91],thresh[91]),normalCopula(rho)))/(1-thresh[91])
+chi0.95geral<-(1-2*thresh[96]+pCopula(cbind(thresh[96],thresh[96]),normalCopula(rho)))/(1-thresh[96])
+chi0.99geral<-(1-2*thresh[100]+pCopula(cbind(thresh[100],thresh[100]),normalCopula(rho)))/(1-thresh[100])
 
-
-n.rep <- 200
-chi.Y.pred <- matrix(NA,nrow=n.rep, ncol=100)
-chib.Y.pred <- matrix(NA,nrow=n.rep, ncol=100)
-for (i in 1:n.rep){
-  dat <- post.pred(2000, samples)
-  chi.Y.pred[i,] <-  chi.value(dat)[[1]][,'chi']
-  chib.Y.pred[i,] <- chi.value(dat)[[2]][,'chib']
+eta0.65geral<-2*(log(1-thresh[66]))/(log(1-2*thresh[66]+pCopula(cbind(thresh[66],thresh[66]),normalCopula(rho))))-1
+eta0.7geral<-2*(log(1-thresh[71]))/(log(1-2*thresh[71]+pCopula(cbind(thresh[71],thresh[71]),normalCopula(rho))))-1
+eta0.75geral<-2*(log(1-thresh[76]))/(log(1-2*thresh[76]+pCopula(cbind(thresh[76],thresh[76]),normalCopula(rho))))-1
+eta0.8geral<-2*(log(1-thresh[81]))/(log(1-2*thresh[81]+pCopula(cbind(thresh[81],thresh[81]),normalCopula(rho))))-1
+eta0.85geral<-2*(log(1-thresh[86]))/(log(1-2*thresh[86]+pCopula(cbind(thresh[86],thresh[86]),normalCopula(rho))))-1
+eta0.9geral<-2*(log(1-thresh[91]))/(log(1-2*thresh[91]+pCopula(cbind(thresh[91],thresh[91]),normalCopula(rho))))-1
+eta0.95geral<-2*(log(1-thresh[96]))/(log(1-2*thresh[96]+pCopula(cbind(thresh[96],thresh[96]),normalCopula(rho))))-1
+eta0.99geral<-2*(log(1-thresh[100]))/(log(1-2*thresh[100]+pCopula(cbind(thresh[100],thresh[100]),normalCopula(rho))))-1
+taumodel<-c()
+nsim<-50000
+n<-100000
+for(i in 1:length(outputM1)){
+  cstar<-sim(n=n,nsim=nsim,parct=est[i,1],parcb=c(est[i,2],est[i,3]),ct="InverGumbel",cb="t",
+             weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=est[i,4])
+  taumodel[i]<-cor(cstar[,1],cstar[,2],method="kendall")
+  print(i)
 }
+# kendall's \tau for the gaussian with \rho=0.65
+kendalgeral<-2/pi*asin(rho)
 
-apply(chi.Y.pred,2,mean)
 
-chi.Y <- chi.value(Y)[[1]]
-chib.Y <- chi.value(Y)[[2]]
-u <- chi.value(Y)[[3]]
+load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation', filename='Scenario_2_Depd_Param.RData'))
 
-chi.Y <- cbind(chi.Y,
-               apply(chi.Y.pred,2,quantile,0.025),
-               apply(chi.Y.pred,2,mean),
-               apply(chi.Y.pred,2,quantile,0.975))
-colnames(chi.Y) <- c('chilow','chi','chiupp','pred_chilow','pred_chi','pred_chiupp')
-matplot(u, chi.Y, type = "l",lty=c(2,1,2,2,1,2), col=c(1,1,1,2,2,2), main='chi plot')
-legend("bottomleft", colnames(chi.Y),col=c(1,1,1,2,2,2),cex=0.8, lty = c(2,1,2,2,1,2))
+lidia.chi <- data.frame('u' = c(0.65, 0.7,0.75,0.8,0.85,0.9,0.95,0.99),
+                        'chi_data'=c(chi0.65geral,chi0.7geral,chi0.75geral,chi0.8geral,
+                                     chi0.85geral,chi0.9geral,chi0.95geral,chi0.99geral),
+                        'chi_lower'=c(quantile(chi0.65,0.025),quantile(chi0.7,0.025),
+                                      quantile(chi0.75,0.025),quantile(chi0.8,0.025),
+                                      quantile(chi0.85,0.025),quantile(chi0.9,0.025),
+                                      quantile(chi0.95,0.025),quantile(chi0.99,0.025)),
+                        'chi_upper'=c(quantile(chi0.65,0.975),quantile(chi0.7,0.975),
+                                      quantile(chi0.75,0.975),quantile(chi0.8,0.975),
+                                      quantile(chi0.85,0.975),quantile(chi0.9,0.975),
+                                      quantile(chi0.95,0.975),quantile(chi0.99,0.975))
+                        )
 
-chib.Y <- cbind(chib.Y,
-               apply(chib.Y.pred,2,quantile,0.025),
-               apply(chib.Y.pred,2,mean),
-               apply(chib.Y.pred,2,quantile,0.975))
-colnames(chib.Y) <- c('chiblow','chib','chibupp','pred_chiblow','pred_chib','pred_chibupp')
-matplot(u, chib.Y, type = "l",lty=c(2,1,2,2,1,2), col=c(1,1,1,2,2,2),main='chi bar plot')
-legend("bottom", colnames(chib.Y),col=c(1,1,1,2,2,2),cex=0.8, lty = c(2,1,2,2,1,2))
+depd_res[[2]]
 
+cb <- function(depd_res){
+  n <- length(depd_res)
+  u <- depd_res[[1]][[2]][[1]][,1]
+  chiu <- c()
+  for (i in 1:n){
+    post.mean.mat <- c()
+    for (j in 1:length(depd_res[[i]][[2]])){
+      post.mean.mat <- cbind(post.mean.mat,depd_res[[i]][[2]][[j]][,2])
+    }
+    post.mean <- rowMeans(post.mean.mat)
+    chiu <- cbind(chiu,post.mean)    
+  }
+  lb <- apply(chiu,1, quantile, 0.025)
+  ub <- apply(chiu,1, quantile, 0.975)
+  mean <- apply(chiu,1, mean)
+  return(cbind(u,lb,ub,mean))
+}
+my.chi.cb<- data.frame(cb(depd_res))
+
+chi_plot <- lidia.chi
+chi_plot$my_ub <- my.chi.cb[as.character(my.chi.cb$u) %in% as.character(chi_plot$u),]$ub
+chi_plot$my_lb <- my.chi.cb[as.character(my.chi.cb$u) %in% as.character(chi_plot$u),]$lb
+
+simu2.palette <- brewer.pal(8,"Accent")
+dodge_amount <- 0.01
+p <- ggplot(chi_plot, aes(x=u, y=chi_data)) +
+  geom_point(aes(x = u - dodge_amount/2),size=2,col=simu2.palette[3]) +
+  geom_point(aes(x = u + dodge_amount/2),size=2,col=simu2.palette[5]) +
+
+  geom_errorbar(
+    aes(ymin=chi_lower, ymax=chi_upper, x = u - dodge_amount/2),
+    width=0.005, color=simu2.palette[3],
+    position=position_dodge(dodge_amount)
+  ) +
+  geom_errorbar(
+    aes(ymin=my_lb, ymax=my_ub, x = u + dodge_amount/2),
+    width=0.005, color=simu2.palette[5],
+    position=position_dodge(dodge_amount)
+  ) +
+  scale_x_continuous(breaks = c(0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99))+
+  labs(x='r',y=expression(chi(r))) +
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15))
+
+
+print(p)
+
+png(filename = file.path(dir.out, "Simulation_2_chi.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+#------------------------------------------ chi bar --------------------------------------------
+lidia.chib <- data.frame('u' = c(0.65, 0.7,0.75,0.8,0.85,0.9,0.95,0.99),
+                        'chib_data'=c(eta0.65geral,eta0.7geral,eta0.75geral,eta0.8geral,
+                                      eta0.85geral,eta0.9geral,eta0.95geral,eta0.99geral),
+                        'chib_lower'=c(quantile(eta0.65,0.025),quantile(eta0.7,0.025),
+                                      quantile(eta0.75,0.025),quantile(eta0.8,0.025),
+                                      quantile(eta0.85,0.025),quantile(eta0.9,0.025),
+                                      quantile(eta0.95,0.025),quantile(eta0.99,0.025)),
+                        'chib_upper'=c(quantile(eta0.65,0.975),quantile(eta0.7,0.975),
+                                      quantile(eta0.75,0.975),quantile(eta0.8,0.975),
+                                      quantile(eta0.85,0.975),quantile(eta0.9,0.975),
+                                      quantile(eta0.95,0.975),quantile(eta0.99,0.975))
+)
+
+
+chib.cb <- function(depd_res){
+  n <- length(depd_res)
+  u <- depd_res[[1]][[2]][[1]][,1]
+  chib.u <- c()
+  for (i in 1:n){
+    post.mean.mat <- c()
+    for (j in 1:length(depd_res[[i]][[3]])){
+      post.mean.mat <- cbind(post.mean.mat,depd_res[[i]][[3]][[j]][,2])
+    }
+    post.mean <- rowMeans(post.mean.mat)
+    chib.u <- cbind(chib.u,post.mean)    
+  }
+  lb <- apply(chib.u,1, quantile, 0.025)
+  ub <- apply(chib.u,1, quantile, 0.975)
+  mean <- apply(chib.u,1, mean)
+  return(cbind(u,lb,ub,mean))
+}
+my.chib.cb<- data.frame(chib.cb(depd_res))
+
+
+chib_plot <- lidia.chib
+chib_plot$my_ub <- my.chib.cb[as.character(my.chib.cb$u) %in% as.character(chib_plot$u),]$ub
+chib_plot$my_lb <- my.chib.cb[as.character(my.chib.cb$u) %in% as.character(chib_plot$u),]$lb
+
+simu2.palette <- brewer.pal(8,"Accent")
+dodge_amount <- 0.01
+cols <- c("Andre' model"=simu2.palette[3],'Our approach'=simu2.palette[5])
+p <- ggplot(chib_plot, aes(x=u, y=chib_data)) +
+  geom_point(aes(x = u - dodge_amount/2),size=2,color=simu2.palette[3]) +
+  geom_point(aes(x = u + dodge_amount/2),size=2,color=simu2.palette[5]) +
+  
+  geom_errorbar(
+    aes(ymin=chib_lower, ymax=chib_upper, x = u - dodge_amount/2,colour="Andre' model"),
+    width=0.005,
+    position=position_dodge(dodge_amount)
+  ) +
+  geom_errorbar(
+    aes(ymin=my_lb, ymax=my_ub, x = u + dodge_amount/2, colour='Our approach'),
+    width=0.005,
+    position=position_dodge(dodge_amount)
+  ) +
+  scale_x_continuous(breaks = c(0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99))+
+  labs(x='r',y=TeX(r'($\bar{\chi}(r)$)')) +
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        legend.position=c(0, 1),
+        legend.justification = c(0, 1),
+        legend.title = element_text(size=15),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc')) + 
+  scale_colour_manual(name="Error Bars",values=cols)
+print(p)
+
+png(filename = file.path(dir.out, "Simulation_2_chibar.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
