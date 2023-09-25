@@ -1,11 +1,13 @@
 library(scoringRules)
 library(HDInterval)
 
-source("KRSW/RevExp_U_Functions.r")
-source("KRSW/CommonFunctions.r")
-source("KRSW/ModelDiagnosticsNewNames.r")
 
+dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
+
+source(file.path(dir.work, "KRSW/RevExp_U_Functions.r"))
+source(file.path(dir.work, "KRSW/CommonFunctions.r"))
+source(file.path(dir.work, "KRSW/ModelDiagnosticsNewNames.r"))
 
 load_install_packages <- function(packages) {
   for(package in packages){
@@ -62,21 +64,50 @@ chi.thy <- function(a){
   return(chi)
 }
 
-load(file=file.path(dir.out, 'Scenario_1.1_itr1_20_lamfix.RData'))
+ver <- '2'
+
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr1_20_lamfix_AFSlice.RData',sep='')))
 chain_out1 <- chain_res
 
-load(file=file.path(dir.out, 'Scenario_1.1_itr21_100_lamfix.RData'))
+load(file=file.path(dir.out, paste('Scenario_',ver,'_itr21_50_lamfix_AFSlice.RData',sep='')))
 chain_out2 <- chain_res
 
-load(file=file.path(dir.out, 'Scenario_1.1_itr101_150_lamfix.RData'))
-chain_out3 <- chain_res
-chain_out <- c(chain_out1,chain_out2,chain_out3)
+chain_out <-  c(chain_out1,chain_out2)
 
-dim(chain_out[[1]]$samples)
-itr <- 1
-samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
-                     chain_out[[itr]][[2]]$samples[,],
-                     chain_out[[itr]][[3]]$samples[,])
+for (i in 2:11){
+  itr.start <- as.character(25*i+1)
+  itr.end <- 25*(i+1)
+  load(file=file.path(dir.out, paste('Scenario_',ver,'_itr',itr.start,'_',itr.end, '_lamfix_AFSlice.RData',sep='')))
+  chain_out <- c(chain_out,chain_res)
+}
+
+# dim(chain_out[[1]]$samples)
+# itr <- 1
+# samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
+#                      chain_out[[itr]][[2]]$samples[,],
+#                      chain_out[[itr]][[3]]$samples[,])
+
+chiEmp1<-function(data,nq=25,qmin, qmax){
+  n<-nrow(data)
+  datatr<-(apply(data,2,rank) - 0.5)/n   
+  qlim<-c(qmin,qmax)
+  u <- seq(qlim[1], qlim[2], length = nq)
+  cu<-sapply(c(1:nq), function(i) mean(apply(datatr,1,min) >= u[i]))
+  res <- cbind(u,cu/(1-u))
+  res[which(res[,2]>1),2] <- 1
+  return(res)
+}
+
+etaEmp1<-function(data,nq=25,qmin, qmax){
+  n<-nrow(data)
+  datatr<-(apply(data,2,rank) - 0.5)/n   
+  qlim<-c(qmin,qmax)
+  u <- seq(qlim[1], qlim[2], length = nq)
+  cu<-sapply(c(1:nq), function(i) mean(apply(datatr,1,min) >= u[i]))
+  res <- cbind(u,2*log(1-u)/log(cu)-1)
+  return(res)
+}
+
 
 post.dsp <- function(n.sp, samples, n.pred=2000, seed=1234){
   set.seed(seed)
@@ -85,6 +116,10 @@ post.dsp <- function(n.sp, samples, n.pred=2000, seed=1234){
   chi.seq <- rep(NA, length(idx))
   tau.seq <- rep(NA, length(idx))
   sCor.seq <- rep(NA<length(idx))
+  chi.emp.seq <- rep(NA, length(idx))
+  chiu.emp <- list()
+  eta.emp.seq <- rep(NA, length(idx))
+  etau.emp <- list()
   for (i in 1:length(idx)){
     a <-  samples[idx[i], c('theta[1]','theta[2]')]
     sig <- samples[idx[i], c('theta[4]','theta[5]')]
@@ -98,7 +133,7 @@ post.dsp <- function(n.sp, samples, n.pred=2000, seed=1234){
     thres <- samples[idx[i], c('thres[1]','thres[2]')]
     p <- pmvnorm( upper=thres, mean=mu, sigma=sigma, keepAttr = F)
     u <- runif(1)
-
+    
     Y.tail<-sim.RevExpU.MGPD(n=n.pred-floor(n.pred*p),d=d, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)
     
     # GP scale tail data combined with the bulk data
@@ -107,29 +142,44 @@ post.dsp <- function(n.sp, samples, n.pred=2000, seed=1234){
     # The name of the dataset should be Y for further WAIC calculation.
     Y <- rbind(Y.bulk, sweep(Y.tail$X,2,thres,"+"))
     chi.seq[i] <- chi.thy(a)
+    chiu.emp[[i]] <- chiEmp1(data=Y, nq=50, qmin=0.5, qmax=0.99)
+    chi.emp.seq[i] <- chiu.emp[[i]][50,2]
+    etau.emp[[i]] <- etaEmp1(data=Y, nq=50, qmin=0.5, qmax=0.99)
+    eta.emp.seq[i] <- etau.emp[[i]][50,2]
     tau.seq[i] <- cor(Y[,1], Y[,2], method='kendall')
     sCor.seq[i] <- cor(Y[,1], Y[,2], method = "spearman")
   }
-  dps.mat <- cbind(tau.seq, sCor.seq, chi.seq)
-  return(dps.mat)
+  dps.mat <- cbind(tau.seq, sCor.seq, chi.seq, chi.emp.seq, eta.emp.seq)
+  return(list("dps.mat"=dps.mat, 'chiu'=chiu.emp, 'etau'=etau.emp))
 }
+
+
+
+chain_out.mat <- list()
+for (itr in 1:length(chain_out)){
+  tmp <- rbind(chain_out[[itr]][[1]]$samples[,],
+               chain_out[[itr]][[2]]$samples[,],
+               chain_out[[itr]][[3]]$samples[,])
+  chain_out.mat[[itr]] <- tmp
+}
+rm(chain_out1,chain_out2,chain_res)
+
+
 
 
 NumberOfCluster <- 40
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
 
+
 t1 <- Sys.time()
-chain_res <-
-  foreach(itr = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
-    samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
-                         chain_out[[itr]][[2]]$samples[,],
-                         chain_out[[itr]][[3]]$samples[,])
-    
+depd_res <-
+  foreach(itr = 1:length(chain_out.mat), .packages = c('mvtnorm','tmvtnorm')) %dopar%{
+    samples.all <- chain_out.mat[[itr]]
     post.dsp(3000, samples.all)
   }
 t2 <- Sys.time()
 print(t2-t1)
 stopCluster(cl)
 
-save(chain_res,  file=file.path(dir.out, filename='Scenario_1.1_Depd_Param.RData'))
+save(depd_res,  file=file.path(dir.out, filename='Scenario_2_Depd_Param.RData'))
