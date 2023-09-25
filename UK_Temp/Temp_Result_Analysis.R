@@ -6,6 +6,7 @@ library(HDInterval)
 library(posterior)
 library(ggplot2)
 library(RColorBrewer)
+library(latex2exp)
 source("KRSW/RevExp_U_Functions.r")
 source("KRSW/CommonFunctions.r")
 source("KRSW/ModelDiagnosticsNewNames.r")
@@ -50,7 +51,7 @@ post.pred <- function(n, samples, seed=1234){
 # load(file=file.path(dir.data, "western-isles_argyll.RData"))
 
 load(file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v1.RData'))
-load(file=file.path(dir.data, "east-sussex_oxfordshire.RData"))
+# load(file=file.path(dir.data, "east-sussex_oxfordshire.RData"))
 Y.fit <- -Y.all
 
 # load(file=file.path(dir.out, filename='manchester_edinburgh_0.8_0.99.RData'))
@@ -127,25 +128,104 @@ for (col in colnames(df.samples.all)){
 #manchester_edinburgh 12 3000 prediction
 #17
 
-Y.fit.pred <- post.pred(50*nrow(Y.fit), samples.all,seed=17)
+Y.fit.pred <- post.pred(nrow(Y.fit), samples.all,seed=17)
 # Y.fit.pred <- post.pred(3000, samples.all,seed=12)
 plot(Y.fit.pred, main='Predicted Residuals')
 
 qqplot(Y.fit.pred[,1], Y.fit[,1],xlab='Predicted Y1', ylab="Empirical Y1")
 abline(a=0,b=1)
 
-emp_quant1 <- quantile(Y.fit[,1], probs = seq(0, 1, length.out = nrow(Y.fit)))
-thy_quant1 <- qnorm(seq(0, 1, length.out = nrow(Y.fit)), mean = mean(Y.fit[,1]), sd = sd(Y.fit[,1]))
+probs <- seq(10^-6, 1-10^-6, length.out = nrow(Y.fit))
+
+emp_quant1 <- quantile(Y.fit[,1], probs = seq(10^-6, 1-10^-6, length.out = nrow(Y.fit)) )
+thy_quant1 <- qnorm(probs, mean = mean(Y.fit[,1]), sd = sd(Y.fit[,1]))
+
 qqplot(thy_quant1, emp_quant1,xlab="Theoretical Y1", ylab="Empirical Y1")
 abline(a=0,b=1)
+pred_quant1 <- quantile(Y.fit.pred[,1], probs = probs)
 
 qqplot(Y.fit.pred[,2],Y.fit[,2], xlab='Predicted Y2', ylab="Empirical Y2")
 abline(a=0,b=1)
 
-emp_quant2 <- quantile(Y.fit[,2], probs = seq(0, 1, length.out = nrow(Y.fit)))
-thy_quant2 <- qnorm(seq(0, 1, length.out = nrow(Y.fit)), mean = mean(Y.fit[,2]), sd = sd(Y.fit[,2]))
+emp_quant2 <- quantile(Y.fit[,2], probs)
+thy_quant2 <- qnorm(probs , mean = mean(Y.fit[,2]), sd = sd(Y.fit[,2]))
+pred_quant2 <- quantile(Y.fit.pred[,2], probs = probs)
 qqplot(thy_quant2, emp_quant2,xlab="Theoretical Y2", ylab="Empirical Y2")
 abline(a=0,b=1)
+
+
+df1.1 <- data.frame(
+  theoretical = thy_quant1,
+  sample = emp_quant1,
+  dataset = "Gaussian"
+)
+df1.2 <- data.frame(
+  theoretical = pred_quant1,
+  sample = emp_quant1,
+  dataset = "BEMM"
+)
+
+
+df2.1 <- data.frame(
+  theoretical = thy_quant2,
+  sample = emp_quant2,
+  dataset = "Gaussian"
+)
+df2.2 <- data.frame(
+  theoretical = pred_quant2,
+  sample = emp_quant2,
+  dataset = "BEMM"
+)
+combined_df.1 <- rbind(df1.1, df1.2)
+combined_df.2 <- rbind(df2.1, df2.2)
+
+qq.palette <- brewer.pal(8,"Accent")
+
+ggplot(combined_df.1, aes(x = theoretical, y = sample, color = dataset)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = 'black') +
+  ggtitle("Ringmer") +
+  xlab("Predicted Quantiles") +
+  ylab("Empirical Quantiles") +
+  scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
+  xlim(-7, 12)+
+  ylim(-7, 12)+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        plot.title = element_text(size=18,hjust = 0.5),
+        legend.position ='None')
+
+# png(filename = file.path(dir.out, "QQ_plot_X1.png"), width = 6*res, height = 5*res, res=res)
+# print(p)
+# dev.off()
+
+ggplot(combined_df.2, aes(x = theoretical, y = sample, color = dataset)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = 'black') +
+  ggtitle("Shirburn") +
+  xlab("Predicted Quantiles") +
+  ylab("Empirical Quantiles") +
+  scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
+  xlim(-7, 12)+
+  ylim(-7, 12)+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        plot.title = element_text(size=18,hjust = 0.5),
+        legend.position=c(0, 1),
+        legend.justification = c(0, 1),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc')) 
+
+# png(filename = file.path(dir.out, "QQ_plot_X2.png"), width = 6*res, height = 5*res, res=res)
+# print(p)
+# dev.off()
+
 
 
 chi.thy <- function(a){
@@ -227,8 +307,8 @@ post.dsp <- function(n.sp, samples, n.pred=2000, seed=1234){
 
 
 t1 <- Sys.time()
-# dept.est <- post.dsp(3000, samples.all, n.pred=nrow(Y.fit))
-dept.est <- post.dsp(3000, samples.all, n.pred=25*nrow(Y.fit))
+dept.est <- post.dsp(3000, samples.all, n.pred=nrow(Y.fit))
+# dept.est <- post.dsp(3000, samples.all, n.pred=25*nrow(Y.fit))
 t2 <- Sys.time()
 print(t2-t1)
 plot(density(dept.est[[1]][,3]))
@@ -268,8 +348,11 @@ dept.emp.3000 <- emp.dsp(3000, Y.fit)
 t4 <- Sys.time()
 print(t4-t3)
 
-
-# load(file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire.RData'))
+# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire.RData'))
+# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Manchester_Edinburgh.RData'))
+# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire_seed123.RData'))
+# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire_seed17.RData'))
+load(file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire_seed17.RData'))
 
 plot(density(dept.emp.3000[[1]][,1]), lwd=2, lty=2, main='kendall tau density',col=2)
 lines(density(dept.est[[1]][,1]), lwd=2)
@@ -341,21 +424,38 @@ display.brewer.all(colorblindFriendly = TRUE)
 emp.mypalette <- brewer.pal(9,"Greys")
 pred.mypalette <- brewer.pal(9,"Blues")
 
-ggplot(df, aes(x=u, y=mean)) +
-  # geom_point(aes(y=mean), color="blue") + 
-  geom_line(aes(y=mean,linetype="dashed"), color=emp.mypalette[9]) +
-  geom_ribbon(aes(ymin=lb, ymax=ub), fill=emp.mypalette[4], alpha=0.7) +
-  scale_linetype_manual(values=c(solid="solid", dashed="dashed",twodash='twodash'))+
-
-  geom_line(aes(y=mean2,linetype="twodash"), color=pred.mypalette[9]) +
-  geom_ribbon(aes(ymin=lb2, ymax=ub2), fill=pred.mypalette[5], alpha=0.4) +
+cols <- c("emp_chi"=emp.mypalette[9],'empirical'=emp.mypalette[4],
+          'pred_chi'=pred.mypalette[9], 'predicted'=pred.mypalette[5],
+          'theorical'=pred.mypalette[7])
+p <- ggplot(df, aes(x=u, y=mean)) +
+  geom_line(aes(y=mean,linetype="empirical",colour='emp_chi')) +
   
-  geom_errorbar(data=df.thy, aes(x=u, ymin=lb, ymax=ub), width=0.01, color=pred.mypalette[7], size=1) +
-  geom_point(data=df.thy, aes(x=u, y=mean), size=2, color=pred.mypalette[7])+
-  
-  labs(x='v',y='chi(v)') + 
-  theme(legend.position = "none")
+  geom_ribbon(aes(ymin=lb, ymax=ub,y=mean,fill='empirical'),alpha=0.7) +
 
+  geom_line(aes(y=mean2,linetype="predicted",color='pred_chi') ) +
+  geom_ribbon(aes(ymin=lb2, ymax=ub2, fill='predicted'),alpha=0.4 ) +
+  
+  geom_errorbar(data=df.thy, aes(x=u, ymin=lb, ymax=ub,color='theorical'), width=0.01,  size=1) +
+  geom_point(data=df.thy, aes(x=u, y=mean,color='theorical'), size=2)+
+  
+  labs(x='r',y=TeX(r'($\chi(r)$)')) + 
+  scale_colour_manual(name="Mean",values=cols,guide = "none")+
+  scale_fill_manual(name="Uncertainty",values=cols)+
+  scale_linetype_manual(name='Mean',values=c('empirical'="dashed",'predicted'='twodash'))+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        legend.position=c(0, 0),
+        legend.justification = c(0, 0),
+        legend.title = element_text(size=15),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc'))
+
+png(filename = file.path(dir.out, "chi.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
 
 eta.cb.emp <- data.frame(chi_cb(dept.emp.3000[[3]]))
 eta.cb.est <- data.frame(chi_cb(dept.est[[3]]))
@@ -365,7 +465,7 @@ df.eta$lb2 <- eta.cb.est$lb
 df.eta$ub2 <- eta.cb.est$ub
 df.eta$mean2 <- eta.cb.est$mean
 
-ggplot(df.eta, aes(x=u, y=mean)) +
+p <- ggplot(df.eta, aes(x=u, y=mean)) +
   geom_line(aes(y=mean,linetype="dashed"), color=emp.mypalette[9]) +
   geom_ribbon(aes(ymin=lb, ymax=ub), fill=emp.mypalette[4], alpha=0.7) +
   scale_linetype_manual(values=c(solid="solid", dashed="dashed",twodash='twodash'))+
@@ -373,8 +473,38 @@ ggplot(df.eta, aes(x=u, y=mean)) +
   geom_line(aes(y=mean2,linetype="twodash"), color=pred.mypalette[9]) +
   geom_ribbon(aes(ymin=lb2, ymax=ub2), fill=pred.mypalette[5], alpha=0.4) +
   
-  labs(x='v',y='chi_bar(v)') + 
-  theme(legend.position = "none")
-# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire.RData'))
-# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Manchester_Edinburgh.RData'))
-# save(dept.emp.300,dept.emp.3000, dept.est, file=file.path(dir.out, 'Depd_Est_east-sussex_oxfordshire_seed123.RData'))
+  labs(x='r',y=TeX(r'($\bar{\chi}(r)$)')) + 
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        legend.position = "none",
+        legend.title = element_text(size=15),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc'))
+
+png(filename = file.path(dir.out, "chibar.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+
+
+
+df.tau1 <- data.frame(tau=dept.emp.3000[[1]][,1],dataset='Empirical')
+df.tau2 <- data.frame(tau=dept.est[[1]][,1],dataset='Predicted')
+df.tau <- rbind(df.tau1,df.tau2)
+
+p <- ggplot(df.tau, aes(x=dataset,y=tau,colour=dataset))+
+  geom_boxplot() +
+  labs(x='model',y=TeX(r'($\tau$)'))+
+  scale_colour_manual(values=c('Empirical'=emp.mypalette[4],'Predicted'=pred.mypalette[5]))+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_blank(),
+        axis.title.y=element_text(size=15),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15))
+png(filename = file.path(dir.out, "tau.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+

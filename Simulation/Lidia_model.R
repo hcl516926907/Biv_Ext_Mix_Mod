@@ -28,7 +28,7 @@ registerDoSNOW(cl)
 
 t1 <- Sys.time()
 outputM1 <-
-  foreach(i = 1:80, .packages = c('mvtnorm','tmvtnorm',"copula","pracma","evd")) %dopar%{
+  foreach(i = 1:100, .packages = c('mvtnorm','tmvtnorm',"copula","pracma","evd")) %dopar%{
     dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
     source(file.path(dir.work, 'Simulation/Functions.R'))
     seed <- i
@@ -54,7 +54,7 @@ outputM1 <-
     end<-Sys.time()-start
     KM1<-K(parct=optM1$par[1],parcb=optM1$par[2:3],
            ct="InverGumbel",cb="t",weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=optM1$par[4])
-    survM1<-survivalf(x=U, parct=optM1$par[1],parcb=optM1$par[2:3],
+    survM1<-survivalf(x=thresh, parct=optM1$par[1],parcb=optM1$par[2:3],
                       ct="InverGumbel",cb="t",weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=optM1$par[4],K=KM1)
     aicM1<-AICm(optM1$par,-optM1$value)
     return(list("Estimates M1"=optM1$par,"Estimated Loglikelihood M1"=optM1$value,"AIC M1"=aicM1,"Time"=end,"KM1"=KM1,"Survival M1"=survM1))
@@ -64,7 +64,8 @@ t2 <- Sys.time()
 print(t2-t1)
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
-save(outputM1,  file=file.path(dir.out, filename='Lidia_model_1_80.RData'))
+# save(outputM1,  file=file.path(dir.out, filename='Lidia_model_1_80.RData'))
+save(outputM1,  file=file.path(dir.out, filename='Lidia_model_1_100.RData'))
 
 # Kconst<-NULL
 # est<-matrix(NA,ncol=4,nrow=length(outputM1))
