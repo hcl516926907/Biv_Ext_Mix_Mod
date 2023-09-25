@@ -296,6 +296,36 @@ kendalgeral<-2/pi*asin(rho)
 
 load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation', filename='Scenario_2_Depd_Param.RData'))
 
+#------------------------------------------tau---------------------
+get_tau <- function(depd_res){
+  post.mean.seq <- c()
+  for (i in 1:length(depd_res)){
+    post.mean <- mean(depd_res[[i]][[1]][,1])
+    post.mean.seq <- c(post.mean.seq,post.mean)
+  }
+  return(post.mean.seq)
+}
+
+tau.palette <- brewer.pal(8,"Accent")
+df.tau1 <- data.frame(tau=taumodel,tv=kendalgeral,dataset='Andre')
+df.tau2 <- data.frame(tau=get_tau(depd_res),tv=kendalgeral,dataset='BEMM')
+df.tau <- rbind(df.tau1,df.tau2)
+p <- ggplot(df.tau, aes(x=dataset,y=tau,colour=dataset))+
+  geom_boxplot() +
+  geom_point(aes(x=dataset, y=tv),size=2,col='black')+
+  labs(x='model',y=TeX(r'($\tau$)'))+
+  scale_colour_manual(values=c('Andre'=tau.palette[3],'BEMM'=tau.palette[5]))+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15))
+png(filename = file.path(dir.out, "Simulation_2_tau.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+
+#---------------------------------------------chi----------------------------
 lidia.chi <- data.frame('u' = c(0.65, 0.7,0.75,0.8,0.85,0.9,0.95,0.99),
                         'chi_data'=c(chi0.65geral,chi0.7geral,chi0.75geral,chi0.8geral,
                                      chi0.85geral,chi0.9geral,chi0.95geral,chi0.99geral),
@@ -404,13 +434,13 @@ chib_plot$my_lb <- my.chib.cb[as.character(my.chib.cb$u) %in% as.character(chib_
 
 simu2.palette <- brewer.pal(8,"Accent")
 dodge_amount <- 0.01
-cols <- c("Andre' model"=simu2.palette[3],'Our approach'=simu2.palette[5])
+cols <- c("Andre's model"=simu2.palette[3],'Our approach'=simu2.palette[5])
 p <- ggplot(chib_plot, aes(x=u, y=chib_data)) +
   geom_point(aes(x = u - dodge_amount/2),size=2,color=simu2.palette[3]) +
   geom_point(aes(x = u + dodge_amount/2),size=2,color=simu2.palette[5]) +
   
   geom_errorbar(
-    aes(ymin=chib_lower, ymax=chib_upper, x = u - dodge_amount/2,colour="Andre' model"),
+    aes(ymin=chib_lower, ymax=chib_upper, x = u - dodge_amount/2,colour="Andre's model"),
     width=0.005,
     position=position_dodge(dodge_amount)
   ) +
@@ -427,11 +457,11 @@ p <- ggplot(chib_plot, aes(x=u, y=chib_data)) +
         axis.title.y=element_text(size=15),
         legend.position=c(0, 1),
         legend.justification = c(0, 1),
-        legend.title = element_text(size=15),
+        legend.title = element_blank(),
         legend.text = element_text(size=15),
         legend.key.size = unit(0.05, 'npc'),
         legend.key.width = unit(0.1, 'npc')) + 
-  scale_colour_manual(name="Error Bars",values=cols)
+  scale_colour_manual(values=cols)
 print(p)
 
 png(filename = file.path(dir.out, "Simulation_2_chibar.png"), width = 6*res, height = 5*res, res=res)
