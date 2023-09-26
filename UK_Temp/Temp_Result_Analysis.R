@@ -188,8 +188,8 @@ ggplot(combined_df.1, aes(x = theoretical, y = sample, color = dataset)) +
   xlab("Predicted Quantiles") +
   ylab("Empirical Quantiles") +
   scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
-  xlim(-7, 12)+
-  ylim(-7, 12)+
+  # xlim(-7, 12)+
+  # ylim(-7, 12)+
   theme(axis.text.x=element_text(size=15),
         axis.text.y=element_text(size=15),
         axis.title.x=element_text(size=15),
@@ -208,8 +208,8 @@ ggplot(combined_df.2, aes(x = theoretical, y = sample, color = dataset)) +
   xlab("Predicted Quantiles") +
   ylab("Empirical Quantiles") +
   scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
-  xlim(-7, 12)+
-  ylim(-7, 12)+
+  # xlim(-7, 12)+
+  # ylim(-7, 12)+
   theme(axis.text.x=element_text(size=15),
         axis.text.y=element_text(size=15),
         axis.title.x=element_text(size=15),
@@ -226,8 +226,106 @@ ggplot(combined_df.2, aes(x = theoretical, y = sample, color = dataset)) +
 # print(p)
 # dev.off()
 
+##########################posterior predictive check#########################
+n.sim <- 300
+Y.fit.rep <- list()
+for (i in 1:n.sim){
+  Y.fit.rep[[i]] <- post.pred(nrow(Y.fit), samples.all,seed=i)
+}
 
 
+# probs <- c(seq(0.01, 0.99, length.out = 100),0.999)
+# probs <- c(seq(0.01, 0.99, length.out = 100),0.995)
+# probs <- c(seq(0.01, 0.99, length.out = 100))
+probs <- c(seq(0.01, 0.9, length.out = 100),seq(0.91,0.999,length.out=50))
+# probs <- seq(10^-6, 1-10^-6, length.out = nrow(Y.fit))
+emp_quant1 <- quantile(Y.fit[,1], probs = probs)
+thy_quant1 <- qnorm(probs, mean = mean(Y.fit[,1]), sd = sd(Y.fit[,1]))
+
+pred_quant1.mat <- c() 
+for (i in 1:n.sim){
+  pred_quant1 <-  quantile( Y.fit.rep[[i]][,1], probs = probs)
+  pred_quant1.mat <- cbind(pred_quant1, pred_quant1.mat)
+}
+
+lower1 <- apply(pred_quant1.mat,1,quantile,0.025)
+upper1 <- apply(pred_quant1.mat,1,quantile,0.975)
+mean1 <- apply(pred_quant1.mat,1,mean)
+
+qqplot(mean1,emp_quant1)
+
+
+df.qq1 <- data.frame('Predicted_Quantile'= mean1,
+                     'Empirical_Quantile'=emp_quant1,
+                     'Gaussian_Quantile'=thy_quant1,
+                     'lower_bound'=lower1,
+                     'upper_bound'=upper1)
+
+
+ggplot(df.qq1, aes(x=emp_quant1, y=Predicted_Quantile,colour='BEMM')) +
+  geom_abline(intercept = 0, slope = 1, color = 'black') +
+  geom_ribbon(aes(ymin=lower_bound, ymax=upper_bound), colour=NA,  fill=pred.mypalette[5], alpha=0.25) +
+  geom_point(aes(y=Gaussian_Quantile,colour='Gaussian')) +
+  geom_point() +
+  scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
+  ggtitle("Ringmer") +
+  xlab("Predicted Quantiles") +
+  ylab("Empirical Quantiles") +
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        plot.title = element_text(size=18,hjust = 0.5),
+        legend.position=c(0, 1),
+        legend.justification = c(0, 1),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc')) 
+
+
+
+emp_quant2 <- quantile(Y.fit[,2], probs = probs)
+thy_quant2 <- qnorm(probs, mean = mean(Y.fit[,2]), sd = sd(Y.fit[,2]))
+
+pred_quant2.mat <- c() 
+for (i in 1:n.sim){
+  pred_quant2 <-  quantile( Y.fit.rep[[i]][,2], probs = probs)
+  pred_quant2.mat <- cbind(pred_quant2, pred_quant2.mat)
+}
+
+lower2 <- apply(pred_quant2.mat,1,quantile,0.025)
+upper2 <- apply(pred_quant2.mat,1,quantile,0.975)
+mean2 <- apply(pred_quant2.mat,1,mean)
+df.qq2 <- data.frame('Predicted_Quantile'= mean2,
+                     'Empirical_Quantile'=emp_quant2,
+                     'Gaussian_Quantile'=thy_quant2,
+                     'lower_bound'=lower2,
+                     'upper_bound'=upper2)
+
+ggplot(df.qq2, aes(x=emp_quant2, y=Predicted_Quantile,colour='BEMM')) +
+  geom_abline(intercept = 0, slope = 1, color = 'black') +
+  geom_ribbon(aes(ymin=lower_bound, ymax=upper_bound), colour=NA,  fill=pred.mypalette[5], alpha=0.25) +
+  geom_point(aes(y=Gaussian_Quantile,colour='Gaussian')) +
+  geom_point() +
+  scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
+  ggtitle("Shirburn") +
+  xlab("Empirical Quantiles") +
+  ylab("Predicted Quantiles") +
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        plot.title = element_text(size=18,hjust = 0.5),
+        legend.position=c(0, 1),
+        legend.justification = c(0, 1),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc')) 
+
+
+##########################################################
 chi.thy <- function(a){
   a1 <- max(1/a)
   a2 <- min(1/a)
