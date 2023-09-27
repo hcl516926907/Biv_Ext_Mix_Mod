@@ -51,7 +51,7 @@ post.pred <- function(n, samples, seed=1234){
 # load(file=file.path(dir.data, "western-isles_argyll.RData"))
 
 load(file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v1.RData'))
-# load(file=file.path(dir.data, "east-sussex_oxfordshire.RData"))
+load(file=file.path(dir.data, "east-sussex_oxfordshire.RData"))
 Y.fit <- -Y.all
 
 # load(file=file.path(dir.out, filename='manchester_edinburgh_0.8_0.99.RData'))
@@ -90,7 +90,7 @@ plot(samples.all[,'thres[1]'],type='l')
 abline(h=quantile(Y.fit[,1], 0.8), lty=2,col='red')
 plot(samples.all[,'thres[2]'],type='l')
 abline(h=quantile(Y.fit[,2], 0.8), lty=2,col='red')
-plot(samples.all[,'theta[6]'],type='l')
+plot(samples.all[,'theta[7]'],type='l')
 
 hist(samples.all[,'mu[2]'],breaks=100)
 hist(samples.all[,'thres[2]'],breaks=100)
@@ -605,4 +605,128 @@ p <- ggplot(df.tau, aes(x=dataset,y=tau,colour=dataset))+
 png(filename = file.path(dir.out, "tau.png"), width = 6*res, height = 5*res, res=res)
 print(p)
 dev.off()
+
+###########################################CRPS###############################
+
+Y.tail <- sim.RevExpU.MGPD(n=1000000,d=2, a=c(0.5,1), beta=c(0,0), sig=c(1,1), gamma=c(-1,0.9), MGPD = T,std=T)$X
+colMeans(Y.tail)
+library(cubature)
+intCrps <- function(d,igd,l,u){
+  
+  converged <- F
+  reltol <- 0.01
+  
+  if(sum(l<u)==d){
+    while(converged == F){
+      hide <- capture.output(int <- vegas(igd,lowerLimit=l,upperLimit=u,relTol=reltol))
+      if(converged == F){
+        reltol <- reltol + 0.01
+      }
+      else{
+        converged <- T
+      }
+      
+      if(reltol > 0.1){
+        converged <- T
+      }
+    }
+  }else{
+    int<-NULL
+    int$integral <- 0
+    int$returnCode <- 1
+  }
+  
+  return(int)
+  
+}
+
+emcdf <- function(x,u){
+  x <- as.matrix(x)
+  n <- nrow(x)
+  cnt <- apply(t(x)<=u,2,all )
+  return(sum(cnt)/(n+1))
+}
+
+X <-cbind( rnorm(2000),rnorm(2000))
+y <- c(1,2)
+emcdf(x,c(4,4))
+
+crps <- function(X,y){
+  
+  # Bounds and dimensions
+  X <- as.matrix(X)
+  y <- c(y)
+  l <- apply(X,2,min)
+  u <- apply(X,2,max)
+  d <- dim(X)[2]
+  
+  # Lower integrand
+  igdL <- function(u){
+    emcdf(X,u)^2
+  }
+  
+  # Upper integrand
+  igdU <- function(u){
+    (emcdf(X,u)-1)^2
+  }
+  
+  # Lower integral
+  intL <- intCrps(d,igdL,l,y)
+  
+  # Upper integral
+  intU <- intCrps(d,igdU,y,u)
+  
+  # CRPS result
+  if((intL$returnCode== 0) && (intU$returnCode==0)){
+    return(intL$integral + intU$integral)
+  }else{
+    return(NA)
+  }
+}
+
+t1 <- Sys.time()
+crps(X,c(2,2))
+print(Sys.time()-t1)
+
+crps1 <- function(X,y){
+  
+  # Bounds and dimensions
+  X <- as.matrix(X)
+  y <- c(y)
+  l <- apply(X,2,min)
+  u <- apply(X,2,max)
+  d <- dim(X)[2]
+  
+  # Lower integrand
+  igd <- function(u){
+    emcdf(X,u)^2
+  }
+  
+  # Upper integrand
+  igdU <- function(u){
+    (emcdf(X,u)-1)^2
+  }
+  
+  # Lower integral
+  intL <- intCrps(d,igdL,l,y)
+  
+  # Upper integral
+  intU <- intCrps(d,igdU,y,u)
+  
+  # CRPS result
+  if((intL$returnCode== 0) && (intU$returnCode==0)){
+    return(intL$integral + intU$integral)
+  }else{
+    return(NA)
+  }
+}
+
+crps(x,c(2,2))
+
+
+
+#################################Energy Score#############################
+
+
+
 
