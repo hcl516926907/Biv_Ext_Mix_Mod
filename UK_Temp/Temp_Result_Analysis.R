@@ -14,6 +14,10 @@ source("KRSW/ModelDiagnosticsNewNames.r")
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/UK_Temp"
 dir.data <- "/home/pgrad2/2448355h/My_PhD_Project/00_Dataset/UK_Temp"
 #################################Used functions#######################
+emp.mypalette <- brewer.pal(9,"Greys")
+pred.mypalette <- brewer.pal(9,"Blues")
+qq.palette <- brewer.pal(8,"Accent")
+
 post.pred <- function(n, samples, seed=1234){
   set.seed(seed)
   Y.pred <- matrix(NA,nrow=n, ncol=2)
@@ -43,6 +47,36 @@ post.pred <- function(n, samples, seed=1234){
 }
 
 
+post.rep <-  function(n.rep, rep.size, samples, seed=1234){
+  set.seed(seed)
+  Y.rep <- list()
+  idx <- sample(nrow(samples),size=n.rep, replace=TRUE)
+  d <- 2
+  for (i in 1:n.rep){
+    a <-  samples[idx[i], c('theta[1]','theta[2]')]
+    sig <- samples[idx[i], c('theta[4]','theta[5]')]
+    gamma <- samples[idx[i], c('theta[6]','theta[7]')]
+    mu <- samples[idx[i], c('mu[1]','mu[2]')]
+    sd1 <- samples[idx[i], 'sds[1]']
+    sd2 <- samples[idx[i], 'sds[2]']
+    corr.chol <- matrix(samples[idx[i],c('Ustar[1, 1]','Ustar[2, 1]',
+                                         'Ustar[1, 2]','Ustar[2, 2]')],ncol=2)
+    sigma <- diag(c(sd1,sd2))%*%t(corr.chol)%*%corr.chol%*%diag(c(sd1,sd2))
+    thres <- samples[idx[i], c('thres[1]','thres[2]')]
+    p <- pmvnorm( upper=thres, mean=mu, sigma=sigma, keepAttr = F)
+    
+
+    Y.tail<-sim.RevExpU.MGPD(n=rep.size-floor(rep.size*p),d=d, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)
+    
+    # GP scale tail data combined with the bulk data
+    Y.bulk <- rtmvnorm(floor(rep.size*p), mean=mu, sigma=sigma, upper=thres)
+    
+    # The name of the dataset should be Y for further WAIC calculation.
+    Y <- rbind(Y.bulk, sweep(Y.tail$X,2,thres,"+"))
+    Y.rep[[i]] <- Y
+  }
+  return(Y.rep)
+}
 
 # load(file=file.path(dir.out, filename='durham_london_0.8_0.99.RData'))
 # load(file=file.path(dir.data, "durham_london.RData"))
@@ -179,7 +213,7 @@ df2.2 <- data.frame(
 combined_df.1 <- rbind(df1.1, df1.2)
 combined_df.2 <- rbind(df2.1, df2.2)
 
-qq.palette <- brewer.pal(8,"Accent")
+
 
 ggplot(combined_df.1, aes(x = theoretical, y = sample, color = dataset)) +
   geom_point() +
@@ -227,11 +261,7 @@ ggplot(combined_df.2, aes(x = theoretical, y = sample, color = dataset)) +
 # dev.off()
 
 ##########################posterior predictive check#########################
-n.sim <- 300
-Y.fit.rep <- list()
-for (i in 1:n.sim){
-  Y.fit.rep[[i]] <- post.pred(nrow(Y.fit), samples.all,seed=i)
-}
+Y.fit.rep <- post.rep(10000, nrow(Y.fit), samples.all, seed=1234)
 
 
 # probs <- c(seq(0.01, 0.99, length.out = 100),0.999)
@@ -519,8 +549,7 @@ df.thy <- data.frame(u=0.99,lb=chi.cb.thy[1],ub=chi.cb.thy[2],mean=chi.cb.thy[3]
 
 display.brewer.all(colorblindFriendly = TRUE) 
 
-emp.mypalette <- brewer.pal(9,"Greys")
-pred.mypalette <- brewer.pal(9,"Blues")
+
 
 cols <- c("emp_chi"=emp.mypalette[9],'empirical'=emp.mypalette[4],
           'pred_chi'=pred.mypalette[9], 'predicted'=pred.mypalette[5],
@@ -726,7 +755,62 @@ crps(x,c(2,2))
 
 
 #################################Energy Score#############################
+library(scoringRules)
 
 
 
+
+t1 <- Sys.time()
+energy_score<- function(Y.data, Y.pred){
+  
+  thres <- apply(Y.data, 2, quantile, 0.9) 
+  
+  mu <- mean(Y.data)
+  sigma=cov(Y.data)
+  weight_func_gauss <- function(x) prod(pnorm(x, mu, diag(sigma)))
+  chain_func_gauss <- function(x){
+    (x - mu)*pnorm(x, mu, diag(sigma)) + (diag(sigma)^2)*dnorm(x, mu, diag(sigma))
+  }
+  
+
+  es.mat <- matrix(0, nrow=2,ncol=3)
+
+  for (k in 1:nrow(Y.data)){
+    es.mat[1,1] = es.mat[1,1]  + es_sample(y = Y.data[k,], dat = t(Y.pred))
+  }
+  es.mat[2,1] = es.mat[1,1]
+  
+  for (k in 1:nrow(Y.data)){
+    es.mat[1,2] = es.mat[1,2]  + owes_sample(y = Y.data[k,], dat = t(Y.pred), a=thres)
+    es.mat[2,2] = es.mat[2,2]  + twes_sample(y = Y.data[k,], dat = t(Y.pred), a=thres)
+  }
+
+  for (k in 1:nrow(Y.data)){
+    es.mat[1,3] = es.mat[1,3]  + owes_sample(y = Y.data[k,], dat = t(Y.pred), weight_func = weight_func_gauss)
+    es.mat[2,3] = es.mat[2,3]  + twes_sample(y = Y.data[k,], dat = t(Y.pred), chain_func = chain_func_gauss)
+  }
+
+  return(es.mat)
+}
+energy_score(Y.fit,Y.fit.rep[[1]])
+t2 <- Sys.time()
+print(t2-t1)
+
+
+Y.pred.BEMM <- post.pred(10000, samples.all,seed=1234)
+set.seed(1234)
+Y.pred.gauss <- rmvnorm(10000, mean = colMeans(Y.fit), sigma = cov(Y.fit))
+
+es_BEMM <- energy_score(Y.fit, Y.pred.BEMM)
+es_Gauss <- energy_score(Y.fit, Y.pred.gauss)
+
+
+
+Y.pred.BEMM_2k <- post.pred(2000, samples.all,seed=1234)
+set.seed(1234)
+Y.pred.gauss_2k <- rmvnorm(2000, mean = colMeans(Y.fit), sigma = cov(Y.fit))
+
+
+es_BEMM_2k_0.9 <- energy_score(Y.fit, Y.pred.BEMM_2k)
+es_Gauss_2k_0.9 <- energy_score(Y.fit, Y.pred.gauss_2k)  
 
