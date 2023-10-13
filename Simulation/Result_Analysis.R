@@ -168,72 +168,37 @@ ggplot(df.para.plot, aes(x=name, y=est,col=group)) +
   theme(axis.text.x=element_blank())
 
 ##################################Scenario 2#########################
-load(file=file.path(dir.out, 'Scenario_2_itr1_20_lamfix_AFSlice.RData'))
-
-chain_out <- chain_res
-para.name <- colnames(chain_out[[1]][[1]]$samples)
-post.mean.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
-colnames(post.mean.mat) <- para.name
-cover.ind.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
-colnames(cover.ind.mat) <- para.name
-ci.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
-max_rhat <- rep(NA, length(chain_out))
-for (itr in 1:length(chain_out)){
-  rhat.seq <- c()
-  ess.seq <- c()
-  for (name in para.name){
-    post.sp <- cbind(chain_out[[itr]][[1]]$samples[,name],
-                     chain_out[[itr]][[2]]$samples[,name],
-                     chain_out[[itr]][[3]]$samples[,name]
-    )
-    rhat.seq <- c(rhat.seq, rhat(post.sp))
-    ess.seq <- c(ess.seq, ess_basic(post.sp))
-  }
-  convg.stat <- data.frame(para.name,rhat.seq,ess.seq )
-  max_rhat[itr] <- max(convg.stat$rhat.seq,na.rm = T)
-  
-  samples.all <- rbind(chain_out[[itr]][[1]]$samples[,],
-                       chain_out[[itr]][[2]]$samples[,],
-                       chain_out[[itr]][[3]]$samples[,])
-}
-
-plot(samples.all[,'theta[6]'],type='l')
-plot(chain_out[[itr]][[3]]$samples[,'thres[1]'],type='l')
-
-plot(density(samples.all[,'thres[1]']))
-
-
-
 source("Simulation/Functions.R")
-load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_80.RData'))
-
+# load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_80.RData'))
+load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_100.RData'))
 
 Kconst<-NULL
 est<-matrix(NA,ncol=4,nrow=length(outputM1))
-surv<-list()
-# for(i in 1:length(outputM1)){
-#   est[i,]<-outputM1[[i]][[1]]
-#   Kconst[i]<-outputM1[[i]][[5]]
-#   surv[[i]]<-outputM1[[i]][[6]]
-# }
 
-# surv is wrong in itr 1-80. 
 thresh<-seq(0.01,0.99,len=100)
+# surv is wrong in itr 1-80. 
+surv<-list()
 for(i in 1:length(outputM1)){
   est[i,]<-outputM1[[i]][[1]]
   Kconst[i]<-outputM1[[i]][[5]]
-  sur <- rep(NA, length(thresh))
-  parct <- est[i,1]
-  parcb <- est[i,2:3]
-  parweight <- est[i,4]
-  KM1 <- Kconst[i]
-  for (j in 1:length(thresh)){
-    sur[j] <-survivalf(x=thresh[j], parct=parct,parcb=parcb,
-                           ct="InverGumbel",cb="t",weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=parweight,K=KM1) 
-  }
-  surv[[i]]<-sur
-  print(i)
+  surv[[i]]<-outputM1[[i]][[6]]
 }
+
+# for(i in 1:length(outputM1)){
+#   est[i,]<-outputM1[[i]][[1]]
+#   Kconst[i]<-outputM1[[i]][[5]]
+#   sur <- rep(NA, length(thresh))
+#   parct <- est[i,1]
+#   parcb <- est[i,2:3]
+#   parweight <- est[i,4]
+#   KM1 <- Kconst[i]
+#   for (j in 1:length(thresh)){
+#     sur[j] <-survivalf(x=thresh[j], parct=parct,parcb=parcb,
+#                            ct="InverGumbel",cb="t",weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=parweight,K=KM1) 
+#   }
+#   surv[[i]]<-sur
+#   print(i)
+# }
 
 etau_model.new<-function(thresh,survP){
   eta_model<-c()
@@ -307,20 +272,24 @@ get_tau <- function(depd_res){
 }
 
 tau.palette <- brewer.pal(8,"Accent")
-df.tau1 <- data.frame(tau=taumodel,tv=kendalgeral,dataset='Andre')
+df.tau1 <- data.frame(tau=taumodel,tv=kendalgeral,dataset='BMCM')
 df.tau2 <- data.frame(tau=get_tau(depd_res),tv=kendalgeral,dataset='BEMM')
 df.tau <- rbind(df.tau1,df.tau2)
+
+res <- 500
 p <- ggplot(df.tau, aes(x=dataset,y=tau,colour=dataset))+
   geom_boxplot() +
   geom_point(aes(x=dataset, y=tv),size=2,col='black')+
   labs(x='model',y=TeX(r'($\tau$)'))+
-  scale_colour_manual(values=c('Andre'=tau.palette[3],'BEMM'=tau.palette[5]))+
+  scale_colour_manual(values=c('BMCM'=tau.palette[3],'BEMM'=tau.palette[5]))+
   theme(axis.text.x=element_text(size=15),
         axis.text.y=element_text(size=15),
         axis.title.x=element_text(size=15),
         axis.title.y=element_text(size=15),
+        legend.position = "none",
         legend.title = element_blank(),
         legend.text = element_text(size=15))
+print(p)
 png(filename = file.path(dir.out, "Simulation_2_tau.png"), width = 6*res, height = 5*res, res=res)
 print(p)
 dev.off()
@@ -393,6 +362,57 @@ print(p)
 png(filename = file.path(dir.out, "Simulation_2_chi.png"), width = 6*res, height = 5*res, res=res)
 print(p)
 dev.off()
+
+#--------------------------------------boxplot version of chi------------------------
+lidia.chi <- data.frame('u' = rep(c(0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99),each=100),
+                        'chi_est'=c(chi0.65,chi0.7, chi0.75, chi0.8, chi0.85,chi0.9,
+                                    chi0.95, chi0.99))
+lidia.chi$chi_data=rep(c(chi0.65geral, chi0.7geral, chi0.75geral, chi0.8geral, 
+                       chi0.85geral, chi0.9geral, chi0.95geral,chi0.99geral),each=100)
+lidia.chi$model <- 'BMCM'
+
+chiboxplot <- function(depd_res){
+  n <- length(depd_res)
+  u <- c(0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99)
+  chiu <- data.frame()
+  u.flt <- which(as.character(depd_res[[1]][[2]][[1]][,'u']) %in% as.character(u))
+  for (i in 1:n){
+    post.mean.mat <- c()
+    for (j in 1:length(depd_res[[i]][[2]])){
+      post.mean.mat <- cbind(post.mean.mat,depd_res[[i]][[2]][[j]][u.flt,2])
+    }
+    post.mean <- rowMeans(post.mean.mat)
+    df.post.mean <- data.frame('u'=u, 'chi_est'=post.mean)
+    chiu <- rbind(chiu,df.post.mean)    
+  }
+  return(chiu)
+}
+my.chi<- data.frame(chiboxplot(depd_res))
+my.chi$chi_data=rep(c(chi0.65geral, chi0.7geral, chi0.75geral, chi0.8geral, 
+                         chi0.85geral, chi0.9geral, chi0.95geral,chi0.99geral),times=300)
+my.chi$model <- 'BEMM'
+
+df.chi.boxplot <- rbind(lidia.chi,my.chi)
+df.chi.boxplot$u <- as.character(df.chi.boxplot$u)
+p <- ggplot(df.chi.boxplot, aes(x=u,y=chi_est,color=model))+
+  geom_boxplot() +
+  geom_point(aes(x=u, y=chi_data),size=2,col='black')+
+  labs(x='model',y=TeX(r'($\tau$)'))+
+  scale_colour_manual(values=c('BMCM'=tau.palette[3],'BEMM'=tau.palette[5]))+
+  scale_x_discrete(breaks = c(0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99))+
+  labs(x='r',y=expression(chi(r))) +
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        legend.position = "none")
+print(p)
+
+png(filename = file.path(dir.out, "Simulation_2_chi_boxplot.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+
+
 #------------------------------------------ chi bar --------------------------------------------
 lidia.chib <- data.frame('u' = c(0.65, 0.7,0.75,0.8,0.85,0.9,0.95,0.99),
                         'chib_data'=c(eta0.65geral,eta0.7geral,eta0.75geral,eta0.8geral,
@@ -434,18 +454,18 @@ chib_plot$my_lb <- my.chib.cb[as.character(my.chib.cb$u) %in% as.character(chib_
 
 simu2.palette <- brewer.pal(8,"Accent")
 dodge_amount <- 0.01
-cols <- c("Andre's model"=simu2.palette[3],'Our approach'=simu2.palette[5])
+cols <- c("BMCM"=simu2.palette[3],'BEMM'=simu2.palette[5])
 p <- ggplot(chib_plot, aes(x=u, y=chib_data)) +
   geom_point(aes(x = u - dodge_amount/2),size=2,color=simu2.palette[3]) +
   geom_point(aes(x = u + dodge_amount/2),size=2,color=simu2.palette[5]) +
   
   geom_errorbar(
-    aes(ymin=chib_lower, ymax=chib_upper, x = u - dodge_amount/2,colour="Andre's model"),
+    aes(ymin=chib_lower, ymax=chib_upper, x = u - dodge_amount/2,colour="BMCM"),
     width=0.005,
     position=position_dodge(dodge_amount)
   ) +
   geom_errorbar(
-    aes(ymin=my_lb, ymax=my_ub, x = u + dodge_amount/2, colour='Our approach'),
+    aes(ymin=my_lb, ymax=my_ub, x = u + dodge_amount/2, colour='BEMM'),
     width=0.005,
     position=position_dodge(dodge_amount)
   ) +
@@ -467,3 +487,59 @@ print(p)
 png(filename = file.path(dir.out, "Simulation_2_chibar.png"), width = 6*res, height = 5*res, res=res)
 print(p)
 dev.off()
+
+
+#----------------------------------chi bar boxplot--------------------------
+lidia.chibar <- data.frame('u' = rep(c(0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99),each=100),
+                        'chibar_est'=c(eta0.65,eta0.7, eta0.75, eta0.8, eta0.85,eta0.9,
+                                    eta0.95, eta0.99))
+lidia.chibar$chibar_data=rep(c(eta0.65geral, eta0.7geral, eta0.75geral, eta0.8geral, 
+                         eta0.85geral, eta0.9geral, eta0.95geral,eta0.99geral),each=100)
+lidia.chibar$model <- 'BMCM'
+
+chibar.boxplot <- function(depd_res){
+  n <- length(depd_res)
+  u <- c(0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99)
+  chibaru <- data.frame()
+  u.flt <- which(as.character(depd_res[[1]][[3]][[1]][,'u']) %in% as.character(u))
+  for (i in 1:n){
+    post.mean.mat <- c()
+    for (j in 1:length(depd_res[[i]][[3]])){
+      post.mean.mat <- cbind(post.mean.mat,depd_res[[i]][[3]][[j]][u.flt,2])
+    }
+    post.mean <- rowMeans(post.mean.mat)
+    df.post.mean <- data.frame('u'=u, 'chibar_est'=post.mean)
+    chibaru <- rbind(chibaru,df.post.mean)    
+  }
+  return(chibaru)
+}
+my.chibar<- data.frame(chibar.boxplot(depd_res))
+my.chibar$chibar_data=rep(c(eta0.65geral, eta0.7geral, eta0.75geral, eta0.8geral, 
+                      eta0.85geral, eta0.9geral, eta0.95geral,eta0.99geral),times=300)
+my.chibar$model <- 'BEMM'
+
+df.chibar.boxplot <- rbind(lidia.chibar,my.chibar)
+df.chibar.boxplot$u <- as.character(df.chibar.boxplot$u)
+p <- ggplot(df.chibar.boxplot, aes(x=u,y=chibar_est,color=model))+
+  geom_boxplot() +
+  geom_point(aes(x=u, y=chibar_data),size=2,col='black')+
+  labs(x='model',y=TeX(r'($\tau$)'))+
+  scale_colour_manual(values=c('BMCM'=tau.palette[3],'BEMM'=tau.palette[5]))+
+  scale_x_discrete(breaks = c(0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99))+
+  labs(x='r',y=TeX(r'($\bar{\chi}(r)$)')) +
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        legend.position=c(0, 1),
+        legend.justification = c(0, 1),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        legend.key.size = unit(0.05, 'npc'),
+        legend.key.width = unit(0.1, 'npc'))
+print(p)
+
+png(filename = file.path(dir.out, "Simulation_2_chibar_boxplot.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+
