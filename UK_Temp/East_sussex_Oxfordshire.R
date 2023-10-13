@@ -74,8 +74,9 @@ NumberOfCluster <- 3
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
 
-source(file.path(dir.work, 'UK_Temp/BEMM_Function_Temp.R'))
-
+# source(file.path(dir.work, 'UK_Temp/BEMM_Function_Temp.R'))
+# run_MCMC_parallel(seed=3, dat=Y.fit, niter=20000, nburnin = 10000, thin=10)
+# 
 
 t1 <- Sys.time()
 chain_res <-
@@ -88,4 +89,7 @@ t2 <- Sys.time()
 print(t2-t1)
 
 # save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99.RData'))
-save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v1.RData')) # v1 corrects the prior of the mu.
+## v1 corrects the prior of the mu.
+# save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v1.RData')) 
+## v2 add the constraints to obtain a finite marginal expectation
+save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v2.RData')) 

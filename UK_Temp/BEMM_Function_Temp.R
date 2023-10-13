@@ -40,8 +40,8 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
   nll.powunif.GPD.1<-function(theta,x,u,a.ind,lam.ind,sig.ind,gamma.ind, lamfix=FALSE, balthresh=FALSE, marg.scale.ind,marg.shape.ind)
   { 
     x.mat.ind <- 1
-    if (is.null(dim(x))){
-      d <- length(x)
+    if (dim(x)[1]==1){
+      d <- dim(x)[2]
       x.mat.ind <- 0
     }else{
       d<-dim(x)[2]
@@ -220,7 +220,7 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
                    sig.ind=double(1), gamma.ind=double(1),
                    log = logical(0, default = 0)) {
       returnType(double(0))
-      
+
       cond <- (x[,1]>thres[1]) | (x[,2]>thres[2])
       n.tail <- sum(cond)
       n.bulk <- sum(!cond)
@@ -363,6 +363,11 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
       # priors for gamma 
       for (i in 6:7)
         theta[i] ~ dunif(-1,1)
+      
+      # constraints for a finite marginal expectation gamma > -1/a
+      constraint_data1 ~ dconstraint( theta[6] + 1/theta[1] > 0 )
+      constraint_data2 ~ dconstraint( theta[7] + 1/theta[2] > 0 )
+        
       y[1:N,1:D] ~ dbiextmix(theta=theta[1:7], thres=thres[1:D], mu=mu[1:D], 
                              cholesky=U[1:D,1:D], D=D,
                              a.ind=a.ind[1:D], lam.ind=lam.ind, lamfix=lamfix, 
@@ -386,7 +391,14 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
     
     
   })
-  
+  set.seed(seed)
+  # [1] "Ustar[1, 1]" "Ustar[2, 1]" "Ustar[1, 2]" "Ustar[2, 2]"
+  # [5] "mu[1]"       "mu[2]"       "sds[1]"      "sds[2]"     
+  # [9] "theta[1]"    "theta[2]"    "theta[3]"    "theta[4]"   
+  # [13] "theta[5]"    "theta[6]"    "theta[7]"    "thres[1]"   
+  # [17] "thres[2]" 
+  Inits <- list(U=matrix( c(1,0,runif(2,0,1)), nrow=2), mu= runif(2,-5,5), sds=runif(2,0.5,5),
+                theta=c(runif(5,0,5), runif(2,0,1)), thres=(runif(2,2,5)))
   BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = nrow(dat), 
                                                                 D = 2,
                                                                 station.ind = TRUE,
@@ -402,10 +414,11 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
                                                                 lam.ind = 3,
                                                                 sig.ind = c(4,5),
                                                                 gamma.ind = c(6,7),
-                                                                lamfix=TRUE),check = FALSE)
+                                                                lamfix=TRUE), check = FALSE)
   
   
-  BivExtMixmodel$setData(list(y = dat))  ## Set those values as data in the model
+  BivExtMixmodel$setData(list(y = dat, constraint_data1=1, constraint_data2=1 ))  ## Set those values as data in the model
+  BivExtMixmodel$setInits(Inits)  
   cBivExtMixmodel <- compileNimble(BivExtMixmodel, showCompilerOutput = TRUE)
   
   BivExtMixconf <- configureMCMC(BivExtMixmodel,

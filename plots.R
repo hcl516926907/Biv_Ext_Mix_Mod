@@ -338,12 +338,12 @@ dbiextmix(matrix(c(1,2),nrow=1), theta=c(2,2,1,0.5,0.5,0.1,0.1),thres=c(5.5,6.7)
 
 log_likelihood <- function(x){
   Y <- rbind(x,x)
-  a <- c(0.9, 1.4)
-  sig <- c(0.5, 0.4)
-  gamma <- c(0.3, -0.2)
+  a <- c(1, 2)
+  sig <- c(1, 1)
+  gamma <- c(0, 0)
   theta <- c(a,1,sig,gamma)
-  thres <- c(5.5, 6.7)
-  mu <- c(3.5,4)
+  thres <- c(5.7, 7.5)
+  mu <- c(3.5, 3.7)
   sd1 <- 1
   sd2 <- 1.5
   rho <- 0.7
@@ -362,8 +362,8 @@ log_likelihood <- function(x){
 # }
 
 # Step 2: Create a grid of x and y values
-x_seq <- seq(0, 10, length.out = 100)
-y_seq <- seq(0, 10, length.out = 100)
+x_seq <- seq(-2, 12, length.out = 100)
+y_seq <- seq(-2, 12, length.out = 100)
 grid <- expand.grid(x = x_seq, y = y_seq)
 
 # Step 3: Evaluate the log-likelihood over the grid
@@ -372,16 +372,46 @@ grid$ll <- apply(grid,1,log_likelihood)
 # Step 4: Exponentiate to get the density
 grid$density <- exp(grid$ll)
 
+
+bin1 <- cut(grid$density, breaks = 20)
+interval1 <- unique(bin1)
+all_edges1 <- unlist(lapply(interval1, function(interval) {
+  string <- gsub("\\[|\\]|\\(|\\)", "", interval)
+  as.numeric(unlist(strsplit(string, ",")))
+}))
+unique_edges1 <- unique(all_edges1)
+print(unique_edges1)
+
+bin2 <- cut(grid$density[which(grid$density<unique_edges1[2])], breaks=20)
+interval2 <- unique(bin2)
+all_edges2 <- unlist(lapply(interval2, function(interval) {
+  string <- gsub("\\[|\\]|\\(|\\)", "", interval)
+  as.numeric(unlist(strsplit(string, ",")))
+}))
+unique_edges2 <- unique(all_edges2)
+
+contour_break <- c(unique_edges1[2:length(unique_edges1)],unique_edges2[2:length(unique_edges2)])
 # Step 5: Create the contour plot
-ggplot(grid, aes(x = x, y = y, z = density)) +
-  geom_contour(aes(color = ..level..)) +
-  scale_color_continuous(low = "blue", high = "red") +
-  geom_segment(aes(x = 5.5, y = 0.8, xend = 5.5, yend = 6.7), color = "black", linetype = "dashed") +
-  geom_segment(aes(x = 1.3, y = 6.7, xend = 5.5, yend = 6.7), color = "black", linetype = "dashed") +
+
+contour.palette <- brewer.pal(8,"Accent")
+p <- ggplot(grid, aes(x = x, y = y, z = density)) +
+  geom_contour(aes(color = ..level..),breaks=contour_break) +
+  scale_color_continuous(low = contour.palette[5], high = contour.palette[7]) +
+  geom_segment(aes(x = 5.7, y = -2, xend = 5.7, yend = 7.5), color = "black", linetype = "dashed") +
+  geom_segment(aes(x = -0.5, y = 7.5, xend = 5.7, yend = 7.5), color = "black", linetype = "dashed") +
   labs(x = "X1",
        y = "X2",
        color = "Density") +
-  theme_minimal()
+  xlim(-0.5,10)+
+  ylim(-2,12)+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15))
 
+res <- 500
+png(filename = file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Plots", "BEMM_Contour_plot.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
 
 
