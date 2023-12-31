@@ -25,7 +25,10 @@ load_install_packages(packages)
 load(file=file.path(dir.data, "east-sussex_oxfordshire.RData"))
 
 temp.daily.max.all.flt <- temp.daily.max.all[(temp.daily.max.all$Year>=2016),]
-Y1 <- data.frame(temp=temp.daily.max.all.flt$air_temp_city1, time= 1:nrow(temp.daily.max.all.flt),
+Y1 <- data.frame(temp=temp.daily.max.all.flt$air_temp_city1, 
+                 time= 1:nrow(temp.daily.max.all.flt),
+                 date = temp.daily.max.all.flt$Date,
+                 month = temp.daily.max.all.flt$Month,
                  lag1=temp.daily.max.all.flt$city1_lag1,
                  lag2=temp.daily.max.all.flt$city1_lag2,
                  lag3=temp.daily.max.all.flt$city1_lag3,
@@ -44,7 +47,10 @@ qqplot(thy_quant1, emp_quant1,xlab="Theoretical Quantiles", ylab="Sample Quantil
 abline(a=0,b=1)
 
 
-Y2 <- data.frame(temp=temp.daily.max.all.flt$air_temp_city2, time= 1:nrow(temp.daily.max.all.flt),
+Y2 <- data.frame(temp = temp.daily.max.all.flt$air_temp_city2, 
+                 time = 1:nrow(temp.daily.max.all.flt),
+                 date = temp.daily.max.all.flt$Date,
+                 month = temp.daily.max.all.flt$Month,
                  lag1=temp.daily.max.all.flt$city2_lag1)
 
 
@@ -67,6 +73,24 @@ kpss.test(model_2$residuals)
 Box.test(model_2$residuals, lag=log(length(model_2$residuals)))
 
 Y <- cbind(model_1$residuals,model_2$residuals)
+
+
+thres1 <- quantile(Y[,1],0.025)
+thres2 <- quantile(Y[,2],0.025)
+extr.cond.joint <- (Y[,1] < thres1)&(Y[,2] < thres1)
+extr.cond.par1 <- Y[,1]<thres1
+extr.cond.par2 <- Y[,2]<thres2
+Y1[extr.cond.joint,'month']
+month.order <- c("Jan",'Feb','Mar','Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+
+Tab.joint <- table(factor(Y1[extr.cond.joint,'month'], levels=month.order))
+barplot(Tab.joint,las=2)
+
+Tab.par1 <- table(factor(Y1[extr.cond.par1,'month'], levels=month.order))
+barplot(Tab.par1,las=2)
+
+Tab.par2 <- table(factor(Y1[extr.cond.par2,'month'], levels=month.order))
+barplot(Tab.par2,,las=2)
 
 Y.fit <- -Y
 
