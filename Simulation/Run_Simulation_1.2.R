@@ -32,9 +32,107 @@ registerDoSNOW(cl)
 
 source(file.path(dir.work, 'Simulation/BEMM_Functions.R'))
 
+# itr <- 500
+# itr <- 600
+# itr <- 700
+# itr <- 800
+itr <- 900
+
 t1 <- Sys.time()
 chain_res <-
-  foreach(i = c(251:300)) %:%
+  foreach(i = (itr+1):(itr+50)) %:%
+  foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
+    seed <- i
+    d <- 2
+    a <- c(0.5, 1.2)
+    beta <- c(0, 0)
+    sig <- c(0.5, 1.2)
+    gamma <- c(0.2, -0.2)
+    n <- 2000
+    mu <- c(3.5, 4.0)
+    sd1 <- 1
+    sd2 <- 1.5
+    rho <- 0.7
+    sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+
+    u.x <- c(5.5, 6.7)
+    # u.x <- c(4.7,6)
+    p <- pmvnorm(upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+
+    set.seed(seed)
+    Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+
+    # GP scale tail data combined with the bulk data
+    set.seed(seed)
+    Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, upper=u.x)
+
+    # The name of the dataset should be Y for further WAIC calculation.
+    Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
+    run_MCMC_parallel(seed=j, dat=Y, niter=30000, nburnin = 20000, thin=10)
+  }
+stopCluster(cl)
+
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr101_150_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr151_200_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr201_250_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr251_300_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr301_350_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr351_400_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr401_450_lamfix.RData'))
+# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr451_500_lamfix.RData'))
+save(chain_res,  file=file.path(dir.out, filename=paste('Scenario_1.2_itr',itr+1,'_',itr+50,'_lamfix.RData',sep='')))
+t2 <- Sys.time()
+print(t2-t1)
+
+
+cl <- makeCluster(NumberOfCluster)
+registerDoSNOW(cl)
+
+t3 <- Sys.time()
+chain_res <-
+  foreach(i = (itr+51):(itr+75)) %:%
+  foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
+    seed <- i
+    d <- 2
+    a <- c(0.5, 1.2)
+    beta <- c(0, 0)
+    sig <- c(0.5, 1.2)
+    gamma <- c(0.2, -0.2)
+    n <- 2000
+    mu <- c(3.5, 4.0)
+    sd1 <- 1
+    sd2 <- 1.5
+    rho <- 0.7
+    sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+
+    u.x <- c(5.5, 6.7)
+    # u.x <- c(4.7,6)
+    p <- pmvnorm(upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+
+    set.seed(seed)
+    Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+
+    # GP scale tail data combined with the bulk data
+    set.seed(seed)
+    Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, upper=u.x)
+
+    # The name of the dataset should be Y for further WAIC calculation.
+    Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
+    run_MCMC_parallel(seed=j, dat=Y, niter=30000, nburnin = 20000, thin=10)
+  }
+stopCluster(cl)
+
+save(chain_res,  file=file.path(dir.out, filename=paste('Scenario_1.2_itr',itr+51,'_',itr+75,'_lamfix.RData',sep='')))
+t4 <- Sys.time()
+print(t4-t3)
+print(t4-t1)
+
+
+cl <- makeCluster(NumberOfCluster)
+registerDoSNOW(cl)
+t5 <- Sys.time()
+chain_res <-
+  foreach(i = (itr+76):(itr+85)) %:%
   foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
     seed <- i
     d <- 2
@@ -66,10 +164,46 @@ chain_res <-
   }
 stopCluster(cl)
 
-# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr101_150_lamfix.RData'))
-# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr151_200_lamfix.RData'))
-# save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr201_250_lamfix.RData'))
-save(chain_res,  file=file.path(dir.out, filename='Scenario_1.2_itr251_300_lamfix.RData'))
-t2 <- Sys.time()
-print(t2-t1)
+save(chain_res,  file=file.path(dir.out, filename=paste('Scenario_1.2_itr',itr+76,'_',itr+85,'_lamfix.RData',sep='')))
 
+
+cl <- makeCluster(NumberOfCluster)
+registerDoSNOW(cl)
+t5 <- Sys.time()
+chain_res <-
+  foreach(i = (itr+86):(itr+100)) %:%
+  foreach(j = 1:3, .packages = c('nimble','mvtnorm','tmvtnorm')) %dopar%{
+    seed <- i
+    d <- 2
+    a <- c(0.5, 1.2)
+    beta <- c(0, 0)
+    sig <- c(0.5, 1.2)
+    gamma <- c(0.2, -0.2)
+    n <- 2000
+    mu <- c(3.5, 4.0)
+    sd1 <- 1
+    sd2 <- 1.5
+    rho <- 0.7
+    sigma <- matrix(c(sd1^2, rho*sd1*sd2, rho*sd1*sd2, sd2^2),ncol=2)
+    
+    u.x <- c(5.5, 6.7)
+    # u.x <- c(4.7,6)
+    p <- pmvnorm(upper=u.x, mean=mu, sigma=sigma, keepAttr = F)
+    
+    set.seed(seed)
+    Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
+    
+    # GP scale tail data combined with the bulk data
+    set.seed(seed)
+    Y.bulk <- rtmvnorm(floor(n*p), mean=mu, sigma=sigma, upper=u.x)
+    
+    # The name of the dataset should be Y for further WAIC calculation.
+    Y <- rbind(Y.bulk, sweep(Y.tail$X,2,u.x,"+"))
+    run_MCMC_parallel(seed=j, dat=Y, niter=30000, nburnin = 20000, thin=10)
+  }
+stopCluster(cl)
+
+save(chain_res,  file=file.path(dir.out, filename=paste('Scenario_1.2_itr',itr+86,'_',itr+100,'_lamfix.RData',sep='')))
+t6 <- Sys.time()
+print(t6-t5)
+print(t6-t1)
