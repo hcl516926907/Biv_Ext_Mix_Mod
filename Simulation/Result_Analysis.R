@@ -5,6 +5,8 @@ library(tmvtnorm)
 library(HDInterval)
 library(posterior)
 library(latex2exp)
+library(RColorBrewer)
+library(ggplot2)
 source("KRSW/RevExp_U_Functions.r")
 source("KRSW/CommonFunctions.r")
 source("KRSW/ModelDiagnosticsNewNames.r")
@@ -41,27 +43,14 @@ post.pred <- function(n, samples, seed=1234){
 }
 
 ##################################Scenario 1#########################
-ver <- '1.2'
+ver <- '1.3'
+all.files <- list.files(dir.out, pattern=paste('Scenario_',ver, "_itr*",sep=''))
 
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr1_20_lamfix.RData',sep='')))
-chain_out1 <- chain_res
-
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr21_100_lamfix.RData',sep='')))
-chain_out2 <- chain_res
-
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr101_150_lamfix.RData',sep='')))
-chain_out3 <- chain_res
-
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr151_200_lamfix.RData',sep='')))
-chain_out4 <- chain_res
-
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr201_250_lamfix.RData',sep='')))
-chain_out5 <- chain_res
-
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr251_300_lamfix.RData',sep='')))
-chain_out6 <- chain_res
-
-chain_out <- c(chain_out1,chain_out2,chain_out3, chain_out4, chain_out5, chain_out6)
+chain_out <- c()
+for (file in all.files){
+  load(file=file.path(dir.out, file))
+  chain_out <- c(chain_out,chain_res)
+}
 
 para.name <- colnames(chain_out[[1]][[1]]$samples)
 post.mean.mat <- matrix(NA, nrow=length(chain_out), ncol= length(para.name))
@@ -259,8 +248,10 @@ for(i in 1:length(outputM1)){
 kendalgeral<-2/pi*asin(rho)
 
 
-load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation', filename='Scenario_2_Depd_Param.RData'))
-
+# load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation', filename='Scenario_2_Depd_Param.RData'))
+load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation', filename='Scenario_2_Depd_Param_1000simu.RData'))
+# The 1000simu versions wrongly included the MCMC output indexed in 21-40.
+depd_res <- c(depd_res[1:20],depd_res[41:1020])
 #------------------------------------------tau---------------------
 get_tau <- function(depd_res){
   post.mean.seq <- c()
@@ -389,7 +380,7 @@ chiboxplot <- function(depd_res){
 }
 my.chi<- data.frame(chiboxplot(depd_res))
 my.chi$chi_data=rep(c(chi0.65geral, chi0.7geral, chi0.75geral, chi0.8geral, 
-                         chi0.85geral, chi0.9geral, chi0.95geral,chi0.99geral),times=300)
+                         chi0.85geral, chi0.9geral, chi0.95geral,chi0.99geral),times=1000)
 my.chi$model <- 'BEMM'
 
 df.chi.boxplot <- rbind(lidia.chi,my.chi)
@@ -515,7 +506,7 @@ chibar.boxplot <- function(depd_res){
 }
 my.chibar<- data.frame(chibar.boxplot(depd_res))
 my.chibar$chibar_data=rep(c(eta0.65geral, eta0.7geral, eta0.75geral, eta0.8geral, 
-                      eta0.85geral, eta0.9geral, eta0.95geral,eta0.99geral),times=300)
+                      eta0.85geral, eta0.9geral, eta0.95geral,eta0.99geral),times=1000)
 my.chibar$model <- 'BEMM'
 
 df.chibar.boxplot <- rbind(lidia.chibar,my.chibar)
