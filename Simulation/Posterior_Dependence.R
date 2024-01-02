@@ -66,20 +66,14 @@ chi.thy <- function(a){
 
 ver <- '2'
 
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr1_20_lamfix_AFSlice.RData',sep='')))
-chain_out1 <- chain_res
+all.files <- list.files(dir.out, pattern=paste('Scenario_',ver, "_itr*",sep=''))
 
-load(file=file.path(dir.out, paste('Scenario_',ver,'_itr21_50_lamfix_AFSlice.RData',sep='')))
-chain_out2 <- chain_res
-
-chain_out <-  c(chain_out1,chain_out2)
-
-for (i in 2:11){
-  itr.start <- as.character(25*i+1)
-  itr.end <- 25*(i+1)
-  load(file=file.path(dir.out, paste('Scenario_',ver,'_itr',itr.start,'_',itr.end, '_lamfix_AFSlice.RData',sep='')))
+chain_out <- c()
+for (file in all.files){
+  load(file=file.path(dir.out, file))
   chain_out <- c(chain_out,chain_res)
 }
+
 
 # dim(chain_out[[1]]$samples)
 # itr <- 1
@@ -182,4 +176,5 @@ t2 <- Sys.time()
 print(t2-t1)
 stopCluster(cl)
 
-save(depd_res,  file=file.path(dir.out, filename='Scenario_2_Depd_Param.RData'))
+# save(depd_res,  file=file.path(dir.out, filename='Scenario_2_Depd_Param.RData'))
+save(depd_res,  file=file.path(dir.out, filename='Scenario_2_Depd_Param_1000simu.RData'))
