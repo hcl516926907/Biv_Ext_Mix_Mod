@@ -96,6 +96,18 @@ Y.fit <- -Y.all
 
 plot(Y.fit, main='Negative Residuals',xlab='Ringmer',ylab='Shirburn')
 
+p <- ggplot(data.frame(Y.fit), aes(x=X1, y=X2)) + 
+  geom_point(size=2,shape=19,col=pred.mypalette[7], alpha=0.9) +
+  labs(x='Ringmer', y='Shirburn')+
+  theme(axis.text.x=element_text(size=15),
+        axis.text.y=element_text(size=15),
+        axis.title.x=element_text(size=15),
+        axis.title.y=element_text(size=15),
+        plot.title = element_text(size=18,hjust = 0.5))
+png(filename = file.path(dir.out,"Temp_Residuals.png"), width = 6*res, height = 5*res, res=res)
+print(p)
+dev.off()
+
 chain_out <- chain_res
 para.name <- colnames(chain_out[[1]]$samples)
 
@@ -121,22 +133,26 @@ df.samples.all <- data.frame(samples.all)
 colnames(df.samples.all) <- c("Ustar_1_1","Ustar_2_1","Ustar_1_2","Ustar_2_2","mu_1",'mu_2','s_1','s_2','a_1','a_2','lam','sigma_1',
                               'sigma_2','gamma_1','gamma_2','u_1','u_2')
 
-
-for (col in colnames(df.samples.all)){
-  filename <- paste("Hist_",col,".png",sep='')
-  p <- ggplot(  df.samples.all, aes(x=.data[[col]])) +
+org.name <- colnames(df.samples.all)
+latex.name <- c(r'($U[1,1]$)', r'($U[2,1]$)', r'($U[1,2]$)', r'($U[2,2]$)', r'($\mu_1$)', r'($\mu_2$)', r'($\s_1$)',
+                r'($\s_2$)', r'($a_1$)', r'($a_2$)', r'($lam$)', r'($\sigma_1$)', r'($\sigma_2$)',
+                r'($\gamma_1$)', r'($\gamma_2$)', r'($u_1$)', r'($u_2$)')
+for (i in 1:length(org.name)){
+  filename <- paste("Hist_",org.name[i],".png",sep='')
+  p <- ggplot(  df.samples.all, aes(x=.data[[org.name[i]]])) +
     geom_histogram( bins=50, fill=pred.mypalette[5], color=pred.mypalette[7], alpha=0.9) +
-    ggtitle(col) +
-    theme(
-      plot.title = element_text(size=15,hjust = 0.5),
-      axis.title.x=element_blank(),
-      axis.title.y=element_blank()
-    )
+    labs(x=TeX(latex.name[i])) + 
+    theme(axis.text.x=element_text(size=15),
+          axis.text.y=element_text(size=15),
+          axis.title.x=element_text(size=15),
+          axis.title.y=element_blank(),
+          legend.position ='None')
   png(filename = file.path(dir.out,filename), width = 6*res, height = 5*res, res=res)
-
   print(p)
   dev.off()
 }
+
+a <- r'()'
 
 ################################# diagnostic based on 1 replicate data #############
 #seed durham london 123
