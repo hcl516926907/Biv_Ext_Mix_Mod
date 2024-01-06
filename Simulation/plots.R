@@ -2,27 +2,7 @@ dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Plots"
 source(file.path(dir.work, "KRSW/RevExp_U_Functions.r"))
 source(file.path(dir.work, "KRSW/CommonFunctions.r"))
-source(file.path(dir.work, "Simulation/CommonFunctions.r"))
-# install_load_packages <- function(packages) {
-#   nodename <- Sys.info()['nodename']
-#   lib_path <- file.path("/home/pgrad2/2448355h/R/library", nodename)
-#   .libPaths(lib_path)
-#   # Create a separate library folder for each node, if it doesn't exist
-#   if (!dir.exists(lib_path)) {
-#     dir.create(lib_path, recursive = TRUE)
-#   }
-#   
-#   for (package in packages) {
-#     # Check if the package is installed in the specific folder
-#     if(!require(package, character.only = TRUE, lib.loc = lib_path)) {
-#       install.packages(package, lib = lib_path, dependencies = TRUE)
-#       library(package, character.only = TRUE, lib.loc = lib_path)
-#     }
-#     
-#     # Load the package
-#     library(package, character.only = TRUE, lib.loc = lib_path)
-#   }
-# }
+
 
 load_install_packages <- function(packages) {
   for(package in packages){
@@ -40,10 +20,15 @@ load_install_packages <- function(packages) {
 
 
 packages <- c( "mvtnorm", "tmvtnorm",'RColorBrewer')  
-
-
 load_install_packages(packages)
 
+
+#######################################################################################################
+# Scatter plot of the bivaratie extreme mixture model
+
+# Parameters are notated same in the paper, except beta being the location parameter in the reverse 
+# exponential distribution. Setting beta to be 0 aligns with the representation in the paper.
+#######################################################################################################
 seed <- 1
 d <- 2
 a <- c(1.4, 1.2)
@@ -133,10 +118,14 @@ dev.off()
 
 
 
-######################contour plot###############
+#######################################################################################################
+# Contour plot of the bivaratie extreme mixture model
+#######################################################################################################
 
 library(ggplot2)
+library(nimble)
 
+#Define the density function via Nimble
 R_pmnorm_chol <- function(lower, upper, mean, cholesky){
   sigma <- t(cholesky) %*% cholesky
   return(pmvnorm(lower=lower, upper=as.vector(upper), mean=as.vector(mean), sigma=sigma, keepAttr = F))
@@ -336,6 +325,8 @@ dbiextmix(matrix(c(1,2),nrow=1), theta=c(2,2,1,0.5,0.5,0.1,0.1),thres=c(5.5,6.7)
           cholesky = chol(sigma),D=2,a.ind=c(1,2),lam.ind=3,lamfix=T,
           sig.ind=4:5,gamma.ind=6:7, log=T)
 
+
+#log-likelihood with standard GPD tail, i.e. sigma=c(1,1), gamma=c(0,0)
 log_likelihood <- function(x){
   Y <- rbind(x,x)
   a <- c(1, 2)
@@ -355,11 +346,6 @@ log_likelihood <- function(x){
   
 }
 
-# log_likelihood <- function(x, y) {
-#   # Here, we assume a simple bivariate Gaussian distribution for illustration.
-#   # Replace this function with your specific log-likelihood computation.
-#   return(-0.5 * (x^2 + y^2 + 2 * 0.5 * x * y))
-# }
 
 # Step 2: Create a grid of x and y values
 x_seq <- seq(-2, 12, length.out = 100)
@@ -423,7 +409,7 @@ dev.off()
 
 #---------------------------------two positive gammas--------------------------------
 
-
+#log-likelihood with sigma=c(1,1.2), gamma=c(0.2,0.3)
 log_likelihood <- function(x){
   Y <- rbind(x,x)
   a <- c(1, 2)
@@ -443,11 +429,6 @@ log_likelihood <- function(x){
   
 }
 
-# log_likelihood <- function(x, y) {
-#   # Here, we assume a simple bivariate Gaussian distribution for illustration.
-#   # Replace this function with your specific log-likelihood computation.
-#   return(-0.5 * (x^2 + y^2 + 2 * 0.5 * x * y))
-# }
 
 # Step 2: Create a grid of x and y values
 x_seq <- seq(-2, 12, length.out = 100)
