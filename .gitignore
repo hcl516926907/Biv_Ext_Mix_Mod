@@ -10,3 +10,4 @@ nohup.out
 /Simulation/*.Rout
 /Simulation/*.swp
 *.Rproj
+.Rproj.user
