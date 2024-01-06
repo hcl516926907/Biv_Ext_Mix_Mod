@@ -13,36 +13,9 @@ source("KRSW/ModelDiagnosticsNewNames.r")
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 
-#################################Used functions#######################
-post.pred <- function(n, samples, seed=1234){
-  set.seed(seed)
-  Y.pred <- matrix(NA,nrow=n, ncol=2)
-  idx <- sample(nrow(samples),size=n, replace=TRUE)
-  d <- 2
-  for (i in 1:length(idx)){
-    a <-  samples[idx[i], c('theta[1]','theta[2]')]
-    sig <- samples[idx[i], c('theta[4]','theta[5]')]
-    gamma <- samples[idx[i], c('theta[6]','theta[7]')]
-    mu <- samples[idx[i], c('mu[1]','mu[2]')]
-    sd1 <- samples[idx[i], 'sds[1]']
-    sd2 <- samples[idx[i], 'sds[2]']
-    corr.chol <- matrix(samples[idx[i],c('Ustar[1, 1]','Ustar[2, 1]',
-                                         'Ustar[1, 2]','Ustar[2, 2]')],ncol=2)
-    sigma <- diag(c(sd1,sd2))%*%t(corr.chol)%*%corr.chol%*%diag(c(sd1,sd2))
-    thres <- samples[idx[i], c('thres[1]','thres[2]')]
-    p <- pmvnorm( upper=thres, mean=mu, sigma=sigma, keepAttr = F)
-    u <- runif(1)
-    if (u<p){
-      Y.pred[i,] <- rtmvnorm(1, mean=mu, sigma=sigma,upper=thres)
-    }else{
-      Y.tail <- sim.RevExpU.MGPD(n=1,d=d, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)$X
-      Y.pred[i,] <- thres + Y.tail
-    }
-  }
-  return(Y.pred)
-}
 
 ##################################Scenario 1#########################
+# The following code load the MCMC samples and calculate the posterior mean, credible interval and coverage rate.
 ver <- '1.3'
 all.files <- list.files(dir.out, pattern=paste('Scenario_',ver, "_itr*",sep=''))
 
@@ -121,7 +94,7 @@ plot(density(samples.all[,'thres[2]']))
 
 plot((chain_out[[2]][[2]]$samples[,'theta[3]']),type='l')
 
-
+# boxplot of the MCMC samples
 set.seed(1234)
 seq <- rep(NA,1000)
 for (n in 1:1000){
@@ -157,6 +130,7 @@ ggplot(df.para.plot, aes(x=name, y=est,col=group)) +
   theme(axis.text.x=element_blank())
 
 ##################################Scenario 2#########################
+# The following code compares chi, chi bar and Kendall's tau from Lidia's model with that from ours.
 source("Simulation/Functions.R")
 # load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_80.RData'))
 load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_100.RData'))
