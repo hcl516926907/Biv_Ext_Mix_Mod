@@ -1,3 +1,9 @@
+######################################################################################
+# Nimble code for running MCMC on our bivariate extreme mixture model using 
+# Automated Factor Slice Sampling
+######################################################################################
+
+
 run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
   dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
   library(nimble)

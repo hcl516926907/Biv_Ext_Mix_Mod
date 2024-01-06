@@ -22,8 +22,10 @@ packages <- c("nimble", "mvtnorm", "tmvtnorm","foreach","doSNOW","parallel", "dp
 
 load_install_packages(packages)
 
+# load the raw temperature data
 load(file=file.path(dir.data, "east-sussex_oxfordshire.RData"))
 
+# Fit the trend and periodic components in the daily maxima data in each city.
 temp.daily.max.all.flt <- temp.daily.max.all[(temp.daily.max.all$Year>=2016),]
 Y1 <- data.frame(temp=temp.daily.max.all.flt$air_temp_city1, 
                  time= 1:nrow(temp.daily.max.all.flt),
@@ -72,6 +74,7 @@ adf.test(model_2$residuals)
 kpss.test(model_2$residuals)
 Box.test(model_2$residuals, lag=log(length(model_2$residuals)))
 
+
 Y <- cbind(model_1$residuals,model_2$residuals)
 
 
@@ -92,15 +95,13 @@ barplot(Tab.par1,las=2)
 Tab.par2 <- table(factor(Y1[extr.cond.par2,'month'], levels=month.order))
 barplot(Tab.par2,,las=2)
 
+# Take the negative residuals as the input for the bivariate extreme mixture model.
 Y.fit <- -Y
 
 NumberOfCluster <- 3
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
 
-# source(file.path(dir.work, 'UK_Temp/BEMM_Function_Temp.R'))
-# run_MCMC_parallel(seed=3, dat=Y.fit, niter=20000, nburnin = 10000, thin=10)
-# 
 
 t1 <- Sys.time()
 chain_res <-
