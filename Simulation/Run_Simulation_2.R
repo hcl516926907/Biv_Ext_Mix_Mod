@@ -25,7 +25,11 @@ load_install_packages(packages)
 
 print(detectCores())
 
-
+######################################################################################
+# Parallelled code for running the simulation multiple times
+# The reason of dividing the code into four parts instead of one is because large number 
+# iterations in the foreach cound cause some unexpected error.
+######################################################################################
 NumberOfCluster <- 40
 
 itr <- 900
