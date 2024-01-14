@@ -7,8 +7,8 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
   dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
   library(nimble)
   library(mvtnorm)
-  source(file.path(dir.work, "KRSW/RevExp_U_Functions.r"))
-  source(file.path(dir.work, "KRSW/CommonFunctions.r"))
+  source(file.path(dir.work, "Simulation/RevExp_U_Functions.r"))
+  source(file.path(dir.work, "Simulation/CommonFunctions.r"))
   
   R_pmnorm_chol <- function(lower, upper, mean, cholesky){
     sigma <- t(cholesky) %*% cholesky

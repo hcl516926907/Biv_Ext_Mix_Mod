@@ -7,9 +7,8 @@ library(posterior)
 library(ggplot2)
 library(RColorBrewer)
 library(latex2exp)
-source("KRSW/RevExp_U_Functions.r")
-source("KRSW/CommonFunctions.r")
-source("KRSW/ModelDiagnosticsNewNames.r")
+source("Simulation/RevExp_U_Functions.r")
+source("Simulation/CommonFunctions.r")
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/UK_Temp"
 dir.data <- "/home/pgrad2/2448355h/My_PhD_Project/00_Dataset/UK_Temp"

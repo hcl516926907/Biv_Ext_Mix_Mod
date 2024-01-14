@@ -1,7 +1,7 @@
 dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
-source(file.path(dir.work, "KRSW/RevExp_U_Functions.r"))
-source(file.path(dir.work, "KRSW/CommonFunctions.r"))
+source(file.path(dir.work, "Simulation/RevExp_U_Functions.r"))
+source(file.path(dir.work, "Simulation/CommonFunctions.r"))
 
 
 load_install_packages <- function(packages) {
