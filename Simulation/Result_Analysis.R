@@ -7,9 +7,8 @@ library(posterior)
 library(latex2exp)
 library(RColorBrewer)
 library(ggplot2)
-source("KRSW/RevExp_U_Functions.r")
-source("KRSW/CommonFunctions.r")
-source("KRSW/ModelDiagnosticsNewNames.r")
+source("Simulation/RevExp_U_Functions.r")
+source("Simulation/CommonFunctions.r")
 
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 
@@ -132,7 +131,6 @@ ggplot(df.para.plot, aes(x=name, y=est,col=group)) +
 ##################################Scenario 2#########################
 # The following code compares chi, chi bar and Kendall's tau from Lidia's model with that from ours.
 source("Simulation/Functions.R")
-# load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_80.RData'))
 load(file=file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation", filename='Lidia_model_1_100.RData'))
 
 Kconst<-NULL
@@ -146,22 +144,6 @@ for(i in 1:length(outputM1)){
   Kconst[i]<-outputM1[[i]][[5]]
   surv[[i]]<-outputM1[[i]][[6]]
 }
-
-# for(i in 1:length(outputM1)){
-#   est[i,]<-outputM1[[i]][[1]]
-#   Kconst[i]<-outputM1[[i]][[5]]
-#   sur <- rep(NA, length(thresh))
-#   parct <- est[i,1]
-#   parcb <- est[i,2:3]
-#   parweight <- est[i,4]
-#   KM1 <- Kconst[i]
-#   for (j in 1:length(thresh)){
-#     sur[j] <-survivalf(x=thresh[j], parct=parct,parcb=parcb,
-#                            ct="InverGumbel",cb="t",weightfun=function(u,v,theta){pifun(u,v,theta)},parweight=parweight,K=KM1) 
-#   }
-#   surv[[i]]<-sur
-#   print(i)
-# }
 
 etau_model.new<-function(thresh,survP){
   eta_model<-c()
