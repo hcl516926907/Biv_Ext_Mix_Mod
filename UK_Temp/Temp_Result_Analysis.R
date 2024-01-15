@@ -180,8 +180,8 @@ p <- ggplot(df.qq1, aes(x=emp_quant1, y=Predicted_Quantile,colour='BEMM')) +
   geom_point() +
   scale_color_manual(values = c("Gaussian" = qq.palette[3], "BEMM" = qq.palette[5]))+
   ggtitle("Ringmer") +
-  xlab("Predicted Quantiles") +
-  ylab("Empirical Quantiles") +
+  xlab("Empirical Quantiles") +
+  ylab("Predicted Quantiles") +
   theme(axis.text.x=element_text(size=15),
         axis.text.y=element_text(size=15),
         axis.title.x=element_text(size=15),
