@@ -1,8 +1,8 @@
 This repository provides a framework to jointly model the bulk and tail data in a Bayesian approach.
-
-#########################################################################
-Simulation (Folder Simulation)
-#########################################################################
+ 
+-------------------------------------------------------------------------
+Simulation (Folder Simulation)  
+-------------------------------------------------------------------------
 
 Main Code 
 --------------------
@@ -39,9 +39,9 @@ RevExp_U_Functions.r
 CommonFunctions.r  
 - Code for fitting multivariate Generalized Pareto Distribution of a U representation and reverse exponential distribution as the generator. These two files are from the supporting material of Kiriliouk et al. (2019).
 
-#########################################################################
+-------------------------------------------------------------------------
 Data Application (Folder UK_Temp)
-#########################################################################
+-------------------------------------------------------------------------
 Main Code 
 --------------------
 Temp_Result_Analysis.R
