@@ -402,7 +402,7 @@ p <- ggplot(grid, aes(x = x, y = y, z = density)) +
         axis.title.y=element_text(size=15),
         legend.position = "none")
 
-res <- 500
+res <- 300
 png(filename = file.path("/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Plots", "BEMM_Contour_plot_1.png"), width = 6*res, height = 5*res, res=res)
 print(p)
 dev.off()

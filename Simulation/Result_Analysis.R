@@ -223,7 +223,7 @@ df.tau1 <- data.frame(tau=taumodel,tv=kendalgeral,dataset='BMCM')
 df.tau2 <- data.frame(tau=get_tau(depd_res),tv=kendalgeral,dataset='BEMM')
 df.tau <- rbind(df.tau1,df.tau2)
 
-res <- 500
+res <- 300
 p <- ggplot(df.tau, aes(x=dataset,y=tau,colour=dataset))+
   geom_boxplot() +
   geom_point(aes(x=dataset, y=tv),size=2,col='black')+

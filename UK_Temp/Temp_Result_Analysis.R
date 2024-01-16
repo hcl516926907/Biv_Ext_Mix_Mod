@@ -16,7 +16,7 @@ dir.data <- "/home/pgrad2/2448355h/My_PhD_Project/00_Dataset/UK_Temp"
 emp.mypalette <- brewer.pal(9,"Greys")
 pred.mypalette <- brewer.pal(9,"Blues")
 qq.palette <- brewer.pal(8,"Accent")
-res <- 500
+res <- 300
 
 # Function to draw samples from the posterior predictive distribution
 post.pred <- function(n, samples, seed=1234){
