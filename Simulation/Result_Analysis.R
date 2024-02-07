@@ -1,8 +1,6 @@
-library(evd)
 library(scoringRules)
 library(mvtnorm)
 library(tmvtnorm)
-library(HDInterval)
 library(posterior)
 library(latex2exp)
 library(RColorBrewer)

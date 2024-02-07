@@ -28,7 +28,7 @@ registerDoSNOW(cl)
 
 t1 <- Sys.time()
 outputM1 <-
-  foreach(i = 1:100, .packages = c('mvtnorm','tmvtnorm',"copula","pracma","evd")) %dopar%{
+  foreach(i = 1:100, .packages = c('mvtnorm','tmvtnorm',"copula","pracma")) %dopar%{
     dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
     source(file.path(dir.work, 'Simulation/Functions.R'))
     seed <- i
