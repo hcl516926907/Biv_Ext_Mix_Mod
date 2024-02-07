@@ -1,8 +1,6 @@
-library(evd)
 library(scoringRules)
 library(mvtnorm)
 library(tmvtnorm)
-library(HDInterval)
 library(posterior)
 library(ggplot2)
 library(RColorBrewer)
@@ -143,7 +141,38 @@ for (i in 1:length(org.name)){
   print(p)
   dev.off()
 }
+################################  traceplot the posteriors ################
+colnames(samples.all) <- c("Ustar_1_1","Ustar_2_1","Ustar_1_2","Ustar_2_2","mu_1",'mu_2','s_1','s_2','a_1','a_2','lam','sigma_1',
+                              'sigma_2','gamma_1','gamma_2','u_1','u_2')
 
+org.name <- colnames(samples.all)
+latex.name <- c(r'($U[1,1]$)', r'($U[2,1]$)', r'($U[1,2]$)', r'($U[2,2]$)', r'($\mu_1$)', r'($\mu_2$)', r'($\s_1$)',
+                r'($\s_2$)', r'($a_1$)', r'($a_2$)', r'($lam$)', r'($\sigma_1$)', r'($\sigma_2$)',
+                r'($\gamma_1$)', r'($\gamma_2$)', r'($u_1$)', r'($u_2$)')
+for (i in 1:length(org.name)){
+  chain1 <- data.frame(iteration = 1:1000, value = samples.all[1:1000, org.name[i]], chain = 'Chain 1')
+  chain2 <- data.frame(iteration = 1:1000, value = samples.all[1001:2000, org.name[i]], chain = 'Chain 2')
+  chain3 <- data.frame(iteration = 1:1000, value = samples.all[2001:3000, org.name[i]], chain = 'Chain 3')
+  mcmc_data <- rbind(chain1, chain2, chain3)
+  # Generating the traceplot
+  p <- ggplot(mcmc_data, aes(x = iteration, y = value, colour=chain)) +
+    geom_line() +
+    theme_minimal() +
+    scale_color_manual(values = c("Chain 1" = qq.palette[1], "Chain 2" = qq.palette[3], "Chain 3" = qq.palette[5]))+
+    ggtitle(TeX(latex.name[i]))+
+    labs(x = "Iteration", y = "Parameter Value") +
+    theme(axis.text.x=element_text(size=15),
+          axis.text.y=element_text(size=15),
+          axis.title.x=element_text(size=15),
+          axis.title.y=element_blank(),
+          plot.title = element_text(size=18,hjust = 0.5),
+          legend.position ='None')
+  filename <- paste("Traceplot_",org.name[i],".png",sep='')
+  print(p)
+  png(filename = file.path(dir.out,filename), width = 6*res, height = 5*res, res=res)
+  print(p)
+  dev.off()
+}
 
 
 ##########################posterior predictive check#########################
