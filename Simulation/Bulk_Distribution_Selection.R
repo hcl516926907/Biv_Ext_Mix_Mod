@@ -3,6 +3,8 @@ dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simul
 source(file.path(dir.work, "Simulation/RevExp_U_Functions.r"))
 source(file.path(dir.work, "Simulation/CommonFunctions.r"))
 
+# install.packages("gsl", dependencies = TRUE, INSTALL_opts = '--no-lock')
+# install.packages('copula')
 library(copula)
 
 i <- 1
@@ -433,7 +435,7 @@ transform_marginal_params <- function(margins, params) {
     if (m == "norm") {
       transformed_params[[i]] <- list(mean = p[1], sd = exp(p[2])) # ensure sd > 0
     } else if (m == "exp") {
-      transformed_params[[i]] <- list(rate = exp(p[2])) # ensure rate > 0
+      transformed_params[[i]] <- list(rate = exp(p[1])) # ensure rate > 0
     } else if (m == "gamma") {
       transformed_params[[i]] <- list(shape = exp(p[1]), rate = exp(p[2])) # ensure shape, rate > 0
     } else if (m == "lnorm") {
@@ -469,12 +471,10 @@ nll.bulk <- function(par, cop.name, margin.name, Y, lbound, ubound){
 }
 
 nll.bulk(rep(0,5),cop.name='normal',margin.name=c('gamma','gamma'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
-nll.bulk(c(0.4,mu[1],sd[1],mu[2],sd[2]),cop.name='normal',margin.name=c('gamma','gamma'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
+nll.bulk(c(0.4,mu[1],sd[1],mu[2],sd[2]),cop.name='gumbel',margin.name=c('gamma','weibull'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
 
-test <- optim(par=rep(0,5), nll.bulk,cop.name='normal',margin.name=c('gamma','gamma'), Y=Y.bulk, lbound=c(0,0),ubound=u.x )
+test <- optim(par=rep(0,5), nll.bulk,cop.name='gumbel',margin.name=c('gamma','weibull'), Y=Y.bulk, lbound=c(0,0),ubound=u.x )
 
-cop.family <- c('normal','clayton','gumbel','frank','joe','plackett')
-margin.family <- c('norm','exp','gamma','lnorm','weibull')
 
 # cop.col <- c()
 # marg1.col <- c()
@@ -496,11 +496,16 @@ margin.family <- c('norm','exp','gamma','lnorm','weibull')
 #   }
 # }
 
+#################################Simulation###########################
 library(doParallel)
 library(foreach)
 num_cores <- detectCores() - 1
 cl <- makeCluster(num_cores)
 registerDoParallel(cl)
+
+cop.family <- c('normal','clayton','gumbel','frank','joe','plackett')
+margin.family <- c('norm','exp','gamma','lnorm','weibull')
+
 
 thres <- u.x - c(0.5,0.5)
 Y.fit <- Y[Y[,1]<thres[1] & Y[,2]<thres[2],]
@@ -528,6 +533,89 @@ res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula'
     k2 <- if (margin.name[2]=='exp') 1 else 2
     aic <- 2*(k1+k2+1) + 2*res2$value
     data.frame('copula'=cop.name,'margin1'=margin.name[1], 'margin2'=margin.name[2], 'nll'= res2$value, 'aic'=aic)
+}
+
+best.bulk<- as.character(res.copula[which.min(res.copula$aic),c('copula','margin1','margin2')])
+
+
+#################################Financial applicaiton###########################
+library(doParallel)
+library(foreach)
+num_cores <- detectCores() - 1
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/00_Dataset','index.daily.RData'))
+Y.daily.return <- as.matrix(100*abs(1-index.daily.dropna[,c('return_ftse','return_dax')]))
+thres <- apply(Y.daily.return, 2, quantile, 0.8)
+Y.fit <-  Y.daily.return[Y.daily.return[,1]<=thres[1] & Y.daily.return[,2]<=thres[2],]
+Y.fit[Y.fit < 10^-6] <- 10^-6
+plot(Y.fit)
+
+c('norm','exp','gamma','lnorm','weibull')
+initial.val <- function(margin.name, data=Y.fit){
+  initial <- 1
+  for (i in 1:2){
+    name <- margin.name[i]
+    if (name=='norm'){
+      initial <- c(initial, mean(data[,i]), log(sd(data[,i])))
+    }else if( name== 'exp'){
+      initial <- c(initial, log(1/mean(data[,i])), 1)
+    }else if( name == 'gamma'){
+      initial <- c(initial,  (log(mean(data[,i]) / sd(data[,i]))^2), log(mean(data[,i]) / var(data[,i])))
+    }else if( name=='lnorm'){
+      initial <- c(initial,  mean(log(data[,i])), log(sd(log(data[,i]))))
+    }else{
+      shape <- 1.2
+      initial <- c(initial,  log(shape) , log(mean(data[,i]) / gamma(1 + 1/shape) ))
+    }
+  }
+  return(initial)
+}
+initial.val(c('norm','norm'),Y.fit)
+
+for (margin1.name in margin.family){
+  for (margin2.name in margin.family){
+    margin.name <- c(margin1.name,margin2.name)
+    print(margin.name)
+    init <- initial.val(margin.name,Y.fit)
+    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    k1 <- if (margin.name[1]=='exp') 1 else 2
+    k2 <- if (margin.name[2]=='exp') 1 else 2
+    aic <- 2*(k1+k2) + 2*res2$value
+    data.frame('margin1'=margin1.name, 'margin2'=margin2.name, 'nll'= res2$value, 'aic'=aic)
+    
+  }
+}
+
+
+res.margin <- foreach(margin1.name = margin.family , .combine='rbind',.packages='copula') %:%
+  foreach(margin2.name = margin.family, .combine='rbind',.packages='copula') %dopar% {
+    margin.name <- c(margin1.name,margin2.name)
+    init <- initial.val(margin.name,Y.fit)
+    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    k1 <- if (margin.name[1]=='exp') 1 else 2
+    k2 <- if (margin.name[2]=='exp') 1 else 2
+    aic <- 2*(k1+k2) + 2*res2$value
+    data.frame('margin1'=margin1.name, 'margin2'=margin2.name, 'nll'= res2$value, 'aic'=aic)
+  }
+
+best.margin <- as.character(res.margin[which.min(res.margin$aic),c('margin1','margin2')])
+
+
+res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula') %dopar% {
+  init <- initial.val(margin.name,Y.fit)
+  res0 <- optim(par=init, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+  res1 <- optim(par=res0$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+  res2 <- optim(par=res1$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+  k1 <- if (margin.name[1]=='exp') 1 else 2
+  k2 <- if (margin.name[2]=='exp') 1 else 2
+  aic <- 2*(k1+k2+1) + 2*res2$value
+  data.frame('copula'=cop.name,'margin1'=margin.name[1], 'margin2'=margin.name[2], 'nll'= res2$value, 'aic'=aic)
 }
 
 best.bulk<- as.character(res.copula[which.min(res.copula$aic),c('copula','margin1','margin2')])
