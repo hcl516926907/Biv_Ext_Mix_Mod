@@ -19,7 +19,7 @@ load_install_packages <- function(packages) {
 }
 
 # List the packages you want to load
-packages <- c("nimble", "foreach","doSNOW","parallel",'copula')  
+packages <- c("nimble", "foreach","doSNOW","parallel",'copula','extraDistr')  
 
 load_install_packages(packages)
 
@@ -31,13 +31,69 @@ print(detectCores())
 # iterations in the foreach cound cause some unexpected error.
 ######################################################################################
 load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/00_Dataset','index.daily.RData'))
-Y <- as.matrix(100*abs(1-index.daily.dropna[,c('return_ftse','return_dax')]))
-Y[Y < 10^-6] <- 10^-6
+# Y <- as.matrix(100*abs(1-index.daily.dropna[,c('return_ftse','return_dax')]))
+# Y[Y < 10^-6] <- 10^-6
+# plot(Y)
+
+
+plot(index.daily.dropna[,c('return_ftse','return_dax')])
+
+
+library("rugarch")
+spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+                   distribution.model = "std")
+
+# Fit the GARCH model to the daily returns
+fit.ftse <- ugarchfit(spec = spec, data = -log(index.daily.dropna$return_ftse))
+
+plot(log(index.daily.dropna$return_ftse),type='l')
+residuals.ftse <- residuals(fit.ftse, standardize = TRUE)
+plot(as.numeric(residuals.ftse),type='l')
+
+
+fit.cac <- ugarchfit(spec = spec, data = -log(index.daily.dropna$return_cac))
+
+plot(log(index.daily.dropna$return_cac),type='l')
+residuals.cac <- residuals(fit.cac, standardize = TRUE)
+plot(as.numeric(residuals.cac),type='l')
+
+fit.dax <- ugarchfit(spec = spec, data = -log(index.daily.dropna$return_dax))
+plot(log(index.daily.dropna$return_dax),type='l')
+residuals.dax <- residuals(fit.dax, standardize = TRUE)
+plot(as.numeric(residuals.dax),type='l')
+
+
+plot(log(index.daily.dropna[,c('return_ftse','return_dax')]))
+
+plot(as.numeric(residuals.ftse), as.numeric(residuals.dax))
+
+plot(abs(as.numeric(residuals.ftse)), abs(as.numeric(residuals.dax)))
+
+library(tseries)
+adf_test_result <- adf.test(residuals.ftse)
+print(adf_test_result)
+
+acf(residuals(fit.dax, standardize=TRUE)^2, main="ACF of Squared Standardized Residuals")
+
+acf(index.daily.dropna$return_dax^2, main="ACF of Squared Standardized Residuals")
+
+Y <- cbind('log.ftse.return'=as.numeric(residuals.ftse), 'log.dax.return'=as.numeric(residuals.dax) )
 plot(Y)
 
 
+Y <- cbind('log.cac.return'=as.numeric(residuals.cac), 'log.dax.return'=as.numeric(residuals.dax) )
+plot(Y)
+
+
+
+
+adf.test(index.daily.dropna$return_dax)
+adf.test(rnorm(1000))
+
 R_dbulk <- function(x,params, bulk.dist.name, lbound.bulk, ubound.bulk ){
   cop.name.map <- c("normal","clayton","gumbel","frank","joe","plackett")
+  
   cop <- switch(cop.name.map[bulk.dist.name[1]],
                 "normal" = normalCopula(param = params[1], dim = 2),
                 "clayton" = claytonCopula(param = params[1], dim = 2),
@@ -47,24 +103,47 @@ R_dbulk <- function(x,params, bulk.dist.name, lbound.bulk, ubound.bulk ){
                 "plackett" = plackettCopula(param = params[1]),
                 stop("Unsupported copula name"))
   
-  margin.name.map <- c("norm","exp","gamma","lnorm","weibull")
+  margin.name.map <- c("norm","exp","gamma","lnorm","weibull",'lst')
   margins.name <- margin.name.map[bulk.dist.name[2:3]]
-  params.margin <- params[2:5]
+  params.margin <- params[-1]
   transformed_params <- list()
+  start.idx <- 1
   for (i in 1:length(margins.name)) {
     m <- margins.name[i]
-    p <- params.margin[(2*i-1) : (2*i)]
     
     if (m == "norm") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(mean = p[1], sd = p[2]) # ensure sd > 0
+      start.idx <- start.idx + n.param
+      
     } else if (m == "exp") {
+      n.param <- 1
+      p <- params.margin[ start.idx]
       transformed_params[[i]] <- list(rate = p[1]) # ensure rate > 0
+      start.idx <- start.idx + n.param
+      
     } else if (m == "gamma") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(shape = p[1], rate = p[2]) # ensure shape, rate > 0
+      start.idx <- start.idx + n.param
+      
     } else if (m == "lnorm") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(meanlog = p[1], sdlog = p[2]) # ensure sdlog > 0
+      start.idx <- start.idx + n.param
     } else if (m == "weibull") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(shape = p[1], scale = p[2]) # ensure shape, scale > 0
+      start.idx <- start.idx + n.param
+    } else if (m == 'lst'){
+      n.param <- 3
+      p <- params.margin[ start.idx : (start.idx+2)]
+      transformed_params[[i]] <- list(df = p[1], mu = p[2], sigma = p[3]) 
+      start.idx <- start.idx + n.param
     } else {
       stop("Unsupported marginal distribution")
     }
@@ -86,8 +165,8 @@ R_dbulk <- function(x,params, bulk.dist.name, lbound.bulk, ubound.bulk ){
   
 }
 
-# gumbel, gamma, weibull
-R_dbulk(Y.bulk,c(1.5,  7, 2, 2, 4),c(3,3,5),c(0,0),u.x)
+# gumbel, lst, lst
+# R_dbulk(Y, c(1.5,  1, 2, 2, 1,2,3),c(3,6,6),c(-Inf,-Inf),c(2,3))
 
 
 
@@ -96,7 +175,6 @@ dbulk <- nimbleRcall(function(x = double(2), params = double(1),bulk.dist.name =
                      Rfun = 'R_dbulk',
                      returnType = double(1))
 
-dbulk(Y.bulk,c(1.5,  7, 2, 2, 4),c(3,3,5),c(0,0),u.x)
 
 
 nll.powunif.GPD.1<-function(theta,x)
@@ -325,20 +403,27 @@ BivExtMixcode <- nimbleCode({
   for (i in 1:2)
     thres[i] ~ T(dnorm(0, sd=20),min.thres[i],max.thres[i])
   
+  # this is for gumbel copula!
   params.bulk[1] ~  dunif(1,20)
-  params.bulk[2] ~  dgamma(shape=1, scale=2)
-  params.bulk[3] ~  dgamma(shape=1, scale=2)
-  params.bulk[4] ~  dgamma(shape=1, scale=2)
-  params.bulk[5] ~  dgamma(shape=1, scale=2)
+  
+  #degree of freedom
+  params.bulk[2] ~  dgamma(shape=2, scale=0.1)
+  # mean
+  params.bulk[3] ~  dnorm(0, sd=20)
+  # sd
+  params.bulk[4] ~  dunif(0,20)
+  params.bulk[5] ~  dgamma(shape=2, scale=0.1)
+  params.bulk[6] ~  dnorm(0, sd=20)
+  params.bulk[7] ~  dunif(0,20)
   
   # priors for sig
   for (i in 1:4)
-    theta[i] ~ dgamma(shape=1, scale=5)
+    theta[i] ~ dunif(0,20)
   # priors for gamma 
   for (i in 5:6)
     theta[i] ~ dunif(-1,1)
   
-  y[1:N,1:2] ~ dbiextmix(thres=thres[1:2], params.bulk=params.bulk[1:5], bulk.dist.name=bulk.dist.name[1:3],
+  y[1:N,1:2] ~ dbiextmix(thres=thres[1:2], params.bulk=params.bulk[1:7], bulk.dist.name=bulk.dist.name[1:3],
                          theta=theta[1:6],  
                          lower=lbound[1:4],upper=ubound[1:4])
   
@@ -346,10 +431,10 @@ BivExtMixcode <- nimbleCode({
 
 dat <- Y
 BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = nrow(dat), 
-                                                              bulk.dist.name=c(5,5,5), 
-                                                              min.thres = apply(dat,2,quantile,0.8),
+                                                              bulk.dist.name=c(3,6,6), 
+                                                              min.thres = apply(dat,2,quantile,0.7),
                                                               max.thres = apply(dat,2,quantile,0.99),
-                                                              lbound = rep(0, 4),
+                                                              lbound = rep(-Inf, 4),
                                                               ubound = rep(Inf, 4)),
                               check = FALSE)
 
@@ -359,45 +444,43 @@ cBivExtMixmodel <- compileNimble(BivExtMixmodel, showCompilerOutput = TRUE)
 
 BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                enableWAIC = TRUE, time=TRUE)
-BivExtMixconf$removeSamplers(c('theta[1:6]', 'thres[1:2]','params.bulk[1:5]'))
-BivExtMixconf$addSampler(target = c('theta[1:6]', 'thres[1:2]','params.bulk[1:5]'), type = 'AF_slice')
+BivExtMixconf$removeSamplers(c('theta[1:6]', 'thres[1:2]','params.bulk[1:7]'))
+BivExtMixconf$addSampler(target = c('theta[1:6]', 'thres[1:2]','params.bulk[1:7]'), type = 'AF_slice')
 
 BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 # BivExtMixMCMC$run(1)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel, showCompilerOutput = TRUE)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 10500, nburnin=1,thin=5,
-                   summary = TRUE, WAIC = TRUE,setSeed = seed)
+results <- runMCMC(cBivExtMixMCMC, niter = 2500, nburnin=1,thin=1,
+                   summary = TRUE, WAIC = TRUE,setSeed = 1234)
 t2 <- Sys.time() 
 print(t2-t1)
-save(results, file=file.path(dir.out, 'daily_index_res.RData') )
+save(Y ,results, file=file.path(dir.out, 'daily_index_res.RData') )
 
 # load(file=file.path(dir.out, 'daily_index_res.RData') )
-# plot(results$samples[500:2499,'theta[5]'],type='l')
+plot(results$samples[600:2499,'theta[6]'],type='l')
 
-# x <- Y
-# theta=colMeans(results$samples[500:2499,c('theta[1]','theta[2]','theta[3]','theta[4]'
-#                                           ,'theta[5]','theta[6]')])
-# thres=colMeans(results$samples[500:2499,c('thres[1]','thres[2]')])
-# params.bulk=colMeans(results$samples[500:2499,c('params.bulk[1]','params.bulk[2]','params.bulk[3]',
-#                                                 'params.bulk[4]','params.bulk[5]')])
-# params.bulk <- exp(res2$par)
-# params.bulk[1] <- params.bulk[1] +  1
-# bulk.dist.name=c(5,5,5)
-# lower=rep(0,4)
-# upper=rep(Inf,4)
-# dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, bulk.dist.name=bulk.dist.name,
-#           theta=theta,
-#           lower=rep(0,4),upper=rep(Inf,4),
-#           log = TRUE)
-# 
-# pMvdc(c(7.7,7.6), gum.dist)
-# 
-# estimated.mean <- as.vector(colMeans(results$samples))
-# dbiextmix(x=Y, thres=estimated.mean[12:13], params.bulk=estimated.mean[1:5], bulk.dist.name=c(3,3,5),
-#           theta=estimated.mean[6:11],
-#           lower=rep(0,4),upper=rep(Inf,4),
-#           log = TRUE)
-# 
-# R_dbulk(Y,estimated.mean[1:5], bulk.dist.name=c(3,3,5),lbound=c(0,0),ubound=u.x)
+x <- Y
+theta=colMeans(results$samples[200:999,c('theta[1]','theta[2]','theta[3]','theta[4]'
+                                          ,'theta[5]','theta[6]')])
+thres=colMeans(results$samples[200:999,c('thres[1]','thres[2]')])
+params.bulk=colMeans(results$samples[200:999,c('params.bulk[1]','params.bulk[2]','params.bulk[3]',
+                                                'params.bulk[4]','params.bulk[5]',
+                                               'params.bulk[6]','params.bulk[7]')])
+
+bulk.dist.name=c(3,6,6)
+lower=rep(-Inf,4)
+upper=rep(Inf,4)
+dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, bulk.dist.name=bulk.dist.name,
+          theta=theta,
+          lower=rep(-Inf,4),upper=rep(Inf,4),
+          log = TRUE)
+
+dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, bulk.dist.name=bulk.dist.name,
+          theta=fit.RevExpU$mle,
+          lower=rep(-Inf,4),upper=rep(Inf,4),
+          log = TRUE)
+
+R_dbulk(Y, c(params.bulk[-7],0.8), bulk.dist.name=c(3,6,6),lbound=c(-Inf,2),ubound=thres)
+R_dbulk(Y, c(log(params.bulk[1]),params.bulk[c(-1,-7)],0.8), bulk.dist.name=c(3,6,6),lbound=c(-Inf,2),ubound=thres)
