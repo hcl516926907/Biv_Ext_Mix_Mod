@@ -421,14 +421,18 @@ BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel, showCompilerOutput = TRUE)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 10000, nburnin=1,thin=10,
+results <- runMCMC(cBivExtMixMCMC, niter = 10000, nburnin=1,thin=5,
                    summary = TRUE, WAIC = TRUE,setSeed = seed)
 t2 <- Sys.time() 
 print(t2-t1)
 save(results, file=file.path(dir.out, 'copula_tGPD_res.RData') )
 
 load(file=file.path(dir.out, 'copula_tGPD_res.RData') )
-plot(results$samples[1:999,'params.bulk[1]'],type='l')
+
+para.name <- 'theta[6]'
+plot(results$samples[100:999,para.name],type='l')
+round(mean(results$samples[100:999,para.name]),2)
+round(quantile((results$samples[100:999,para.name]), c(0.025,0.975)),2)
 
 # x <- Y
 # theta=c(a,sig,gamma)
