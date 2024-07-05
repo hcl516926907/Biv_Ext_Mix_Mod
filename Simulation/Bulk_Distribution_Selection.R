@@ -1,12 +1,13 @@
 dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 source(file.path(dir.work, "Simulation/RevExp_U_Functions.r"))
+source(file.path(dir.work, "Simulation/Gumbel_U_Functions.r"))
 source(file.path(dir.work, "Simulation/CommonFunctions.r"))
 
 # install.packages("gsl", dependencies = TRUE, INSTALL_opts = '--no-lock')
 # install.packages('copula')
 library(copula)
-
+library(extraDistr)
 i <- 1
 seed <- i
 d <- 2
@@ -30,16 +31,36 @@ lbound.tail=c(1,1)
 ubound.tail=c(Inf,Inf)
 
 norm.cop <- gumbelCopula(param = 1.5, dim = 2)
+# 
+# gaussian <- mvdc(norm.cop, margins = c('gamma','weibull'),
+# 
+#                  paramMargins=list(list(shape=mu[1], rate=sd[1]),
+# 
+#                                    list(shape=2,scale=4)))
+# 
 
-gaussian <- mvdc(norm.cop, margins = c('gamma','weibull'), 
+u.x <- c(3,2)
+gaussian <- mvdc(norm.cop, margins = c('lst','lst'),
 
-                 paramMargins=list(list(shape=mu[1], rate=sd[1]),
-                                   
-                                   list(shape=2,scale=4)))
+                 paramMargins=list(list(df=4, mu=2,sigma=0.5),
+
+                                   list(df=5, mu=1,sigma=0.6)))
 
 p <- pMvdc(u.x, gaussian)
 
+
 set.seed(1111)
+
+a <- c(2, 2)
+beta <- c(0, 0)
+sig <- c(0.3, 0.3)
+gamma <- c(0.22, 0.2)
+
+##### tail bound is defined on the observational scale
+lbound.tail=c(-Inf,-Inf)
+ubound.tail=c(Inf,Inf)
+
+
 Y.tail<-sim.RevExpU.MGPD(n=n-floor(n*p),d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)$X
 
 # GP scale tail data combined with the bulk data
@@ -229,27 +250,6 @@ trunc.norm.const(a=c(4,5), c(-0.1,-0.1), c(Inf,Inf))
 trunc.prob(lower=c(-0.1,-0.1),a=c(4,5),sig=c(1,1),gamma=c(0,0))
 
 
-# trunc.norm.const.GPD <- function(a., sig., gamma., lower., upper. ){
-#   upp.para1 <- if (gamma.[1] <0) -sig.[1]/gamma.[1] else Inf  
-#   upp.para2 <- if (gamma.[2] <0) -sig.[2]/gamma.[2] else Inf 
-#   upper1 <- pmin(upper., c(upp.para1, upp.para2))
-#   
-#   low.para1 <- if( gamma.[1]>0) -sig.[1]/gamma.[1] else -Inf  
-#   low.para2 <- if( gamma.[2]>0) -sig.[2]/gamma.[2] else -Inf  
-#   lower1 <- pmax(lower., c(low.para1,low.para2) )
-#   for (i in 1:length(sig)){
-#     if (abs(gamma.[i])<10^-6){
-#       lower1[i] <- lower1[i]/sig.[i]
-#       upper1[i] <- upper1[i]/sig.[i]
-#     }else{
-#       lower1[i] <- log(gamma.[i]/sig.[i]*lower1[i]+1)/gamma.[i]
-#       upper1[i] <- log(gamma.[i]/sig.[i]*upper1[i]+1)/gamma.[i]
-#     }
-#   }
-#   a1 <- a.
-#   return(trunc.norm.const(a1,lower1,upper1))
-# }
-
 trunc.norm.const.GPD <- function(a, sig, gamma, lower, upper ){
   upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
   upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
@@ -346,59 +346,19 @@ fit.tMGPD.RevExpU <- function(x,lower,upper){
 }
 
 fitTGP <- fit.tMGPD.RevExpU(Y.tail, lbound.tail-u.x, c(Inf,Inf))
-fitGP<-fit.MGPD.RevExpU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
+
 
 
 mix.p.hat <- nrow(Y.bulk)/nrow(Y)
 tail.norm.const <- trunc.norm.const.GPD(a=c(4,1), sig=c(0.1,2), gamma=c(0.2,0.2),lower=c(-Inf,-Inf), upper=c(Inf,Inf))
 
-# fitBulkMargin1 <- function(x, theta.tail, lower, upper, thres, mix.p.hat ){
-#   x.tail <- (x-thres)
-#   a <- theta.tail[1:2]
-#   sig <- theta.tail[3:4]
-#   gamma <- theta.tail[5:6]
-#   lower.tail <- lower-thres
-#   upper.tail <- upper-thres
-#   
-#   if (abs(gamma[1])<10^-6){
-#     x.tail.std <- x.tail/sig[1]
-#   }else{
-#     x.tail.std <- log(gamma[1]/sig[1]*x.tail+1 + 10^-6)/gamma[1]
-#   }
-#   upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-#   upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
-#   upper.tail <- pmin(upper.tail, c(upp.para1, upp.para2))
-#   
-#   low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-#   low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-#   lower.tail <- pmax(lower.tail, c(low.para1,low.para2) )
-#   
-#   for (i in 1:length(sig)){
-#     if (abs(gamma[i])<10^-6){
-#       lower.tail[i] <- lower.tail[i]/sig[i]
-#       upper.tail[i] <- upper.tail[i]/sig[i]
-#     }else{
-#       lower.tail[i] <- log(gamma[i]/sig[i]*lower.tail[i]+1 + 10^-6)/gamma[i]
-#       upper.tail[i] <- log(gamma[i]/sig[i]*upper.tail[i]+1 + 10^-6)/gamma[i]
-#     }
-#   }
-#   tail.norm.const <- trunc.norm.const(a=a, lower=lower.tail, upper=upper.tail)
-#   dens.tail <- fY1_lt0.margin(x.tail.std, a, upper.tail[2])/tail.norm.const
-#   
-#   dens.tail[which(x<lower[1] | x > upper[1])] <- 0
-#   
-#   tgt <- function(par, x){
-#     return(-sum(log(dgamma(x,shape=exp(par[1]), rate=exp(par[2])) + (1-mix.p.hat)*dens.tail)))
-#   }
-#   optim(par=c(log(7), log(2)),tgt, x=x  )
-#     
-# }
 
 paralist <- list('gamma'= list(shape=1,rate=1), 
                  'norm'= list(mu=1,sd=1),
                  'exp' = list(rate = 1),
                  'lnorm' = list(meanlog = 0, sdlog = 1),
-                 'weibull' = list(shape = 2, scale = 1)
+                 'weibull' = list(shape = 2, scale = 1),
+                 'lst' = list(df=5, mu=0, sigma=1)
                  )
 
 create_copula <- function(copula_name, param, dim = 2) {
@@ -425,23 +385,45 @@ create_copula <- function(copula_name, param, dim = 2) {
 
 create_copula('normal',-1.2)
 
-transform_marginal_params <- function(margins, params) {
+transform_marginal_params <- function(margins, params.margin) {
   transformed_params <- list()
-  
+  start.idx <- 1
   for (i in 1:length(margins)) {
     m <- margins[i]
-    p <- params[(2*i-1) : (2*i)]
     
     if (m == "norm") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(mean = p[1], sd = exp(p[2])) # ensure sd > 0
+      start.idx <- start.idx + n.param
+      
     } else if (m == "exp") {
+      n.param <- 1
+      p <- params.margin[ start.idx]
       transformed_params[[i]] <- list(rate = exp(p[1])) # ensure rate > 0
+      start.idx <- start.idx + n.param
+      
     } else if (m == "gamma") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(shape = exp(p[1]), rate = exp(p[2])) # ensure shape, rate > 0
+      start.idx <- start.idx + n.param
+      
     } else if (m == "lnorm") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(meanlog = p[1], sdlog = exp(p[2])) # ensure sdlog > 0
+      start.idx <- start.idx + n.param
     } else if (m == "weibull") {
+      n.param <- 2
+      p <- params.margin[ start.idx : (start.idx+1)]
       transformed_params[[i]] <- list(shape = exp(p[1]), scale = exp(p[2])) # ensure shape, scale > 0
+      start.idx <- start.idx + n.param
+    } else if (m == 'lst'){
+      n.param <- 3
+      p <- params.margin[ start.idx : (start.idx+2)]
+      transformed_params[[i]] <- list(df = exp(p[1]), mu = p[2], sigma = exp(p[3])) 
+      start.idx <- start.idx + n.param
     } else {
       stop("Unsupported marginal distribution")
     }
@@ -450,11 +432,11 @@ transform_marginal_params <- function(margins, params) {
   return(transformed_params)
 }
 
-transform_marginal_params(c('norm','exp'),c(1,-22,-3,4))
+transform_marginal_params(c('norm','lst'),c(1,-22,-3,4,5))
 
 nll.bulk <- function(par, cop.name, margin.name, Y, lbound, ubound){
   cop <- create_copula(cop.name, par[1])
-  margin.para <- transform_marginal_params(margin.name, par[2:5])
+  margin.para <- transform_marginal_params(margin.name, par[-1])
   
   joint.dist <- mvdc(cop, margins = margin.name, 
                    
@@ -466,15 +448,34 @@ nll.bulk <- function(par, cop.name, margin.name, Y, lbound, ubound){
   p1 <- pMvdc(ubound, joint.dist)
   p2 <- pMvdc(lbound, joint.dist)
   p <- p1 - p2 + 10^-6
-  return(-sum(dMvdc(Y, joint.dist,log=T)) + nrow(Y)*log(p))
+  dbulk <- dMvdc(Y, joint.dist,log=T)
+  dbulk[which(dbulk==-Inf)] <- -10^10
+  return(-sum(dbulk) + nrow(Y)*log(p))
   
 }
 
 nll.bulk(rep(0,5),cop.name='normal',margin.name=c('gamma','gamma'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
-nll.bulk(c(0.4,mu[1],sd[1],mu[2],sd[2]),cop.name='gumbel',margin.name=c('gamma','weibull'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
+nll.bulk(c(-0.93,log(mu[1]),log(sd[1]),log(2),log(4)),cop.name='gumbel',margin.name=c('gamma','weibull'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
 
-test <- optim(par=rep(0,5), nll.bulk,cop.name='gumbel',margin.name=c('gamma','weibull'), Y=Y.bulk, lbound=c(0,0),ubound=u.x )
+nll.bulk(c(-0.9,4,2,log(0.6),5,1, log(0.5)),cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x)
 
+
+transform_marginal_params(c('norm','norm'),c(2,log(0.6),1, log(0.5)))
+nll.bulk(c(log(1.5),2,log(0.6),1, log(0.5)),cop.name='gumbel',margin.name=c('norm','norm'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x)
+
+nll.bulk(c(log(1.5),log(4),2,log(0.6),log(5),1, log(0.5)),cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x)
+
+
+test <- optim(par=rep(0,7), nll.bulk,cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x )
+
+test2 <- optim(par=test$par, nll.bulk,cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x)
+test3 <- optim(par=test2$par, nll.bulk,cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x )
+test4 <- optim(par=test3$par, nll.bulk,cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=rep(-Inf,2),ubound=u.x )
+
+
+
+nll.bulk(test3$par,cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
+nll.bulk(c(-0.1872918, 1.2 , 2.0226106, -0.8886660  ,1.5,  1.0140278, -0.5081560),cop.name='gumbel',margin.name=c('lst','lst'), Y=Y.bulk, lbound=c(0,0),ubound=u.x)
 
 # cop.col <- c()
 # marg1.col <- c()
@@ -504,17 +505,74 @@ cl <- makeCluster(num_cores)
 registerDoParallel(cl)
 
 cop.family <- c('normal','clayton','gumbel','frank','joe','plackett')
-margin.family <- c('norm','exp','gamma','lnorm','weibull')
+margin.family <- c('norm','exp','gamma','lnorm','weibull','lst')
+
+initial.val <- function(margin.name, data=Y.fit){
+  initial <- 1
+  for (i in 1:2){
+    name <- margin.name[i]
+    if (name=='norm'){
+      initial <- c(initial, mean(data[,i]), log(sd(data[,i])))
+    }else if( name== 'exp'){
+      if (mean(data[,i]) > 0 ){
+        initial <- c(initial, log(1/mean(data[,i])))
+      }else{
+        initial <- c(initial, 1)
+      }
+
+    }else if( name == 'gamma'){
+      if (mean(data[,i]) > 0 ){
+        initial <- c(initial,  (log(mean(data[,i]) / sd(data[,i]))^2), log(mean(data[,i]) / var(data[,i])))
+      }else{
+        initial <- c(initial, 1, 1)
+      }
+    }else if( name=='lnorm'){
+      initial <- c(initial,  mean(data[,i]), log(sd(data[,i])))
+    }else if( name=='lst'){
+      initial <- c(initial,1, mean(data[,i]), log(sd(data[,i])))
+    }else{
+      shape <- 1.2
+      if (mean(data[,i]) > 0 ){
+        initial <- c(initial,  log(shape) , log(mean(data[,i]) / gamma(1 + 1/shape) ))
+      }else{
+        initial <- c(initial,  log(shape) , 1 / gamma(1 + 1/shape) )
+      }
+    }
+  }
+  return(initial)
+}
+initial.val(c('lst','lnorm'),Y.bulk)
+
+for (margin1.name in margin.family[1]){
+  for (margin2.name in margin.family[6]){
+    margin.name <- c(margin1.name,margin2.name)
+    print(margin.name)
+    init <- initial.val(margin.name,Y.fit)
+    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=u.x )
+    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=u.x )
+    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=u.x )
+    k1 <- if (margin.name[1]=='exp') 1 else 2
+    k2 <- if (margin.name[2]=='exp') 1 else 2
+    aic <- 2*(k1+k2) + 2*res2$value
+    data.frame('margin1'=margin1.name, 'margin2'=margin2.name, 'nll'= res2$value, 'aic'=aic)
+    
+  }
+  
+}
 
 
-thres <- u.x - c(0.5,0.5)
-Y.fit <- Y[Y[,1]<thres[1] & Y[,2]<thres[2],]
+
+
+thres <- u.x
+Y.fit <- Y.bulk
 res.margin <- foreach(margin1.name = margin.family , .combine='rbind',.packages='copula') %:%
   foreach(margin2.name = margin.family, .combine='rbind',.packages='copula') %dopar% {
     margin.name <- c(margin1.name,margin2.name)
-    res0 <- optim(par=rep(0,5), nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    print(margin.name)
+    init <- initial.val(margin.name,Y.fit)
+    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
     k1 <- if (margin.name[1]=='exp') 1 else 2
     k2 <- if (margin.name[2]=='exp') 1 else 2
     aic <- 2*(k1+k2) + 2*res2$value
@@ -526,7 +584,9 @@ best.margin <- as.character(res.margin[which.min(res.margin$aic),c('margin1','ma
 
 res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula') %dopar% {
     margin.name <- best.margin
-    res0 <- optim(par=rep(0,5), nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+    print(margin.name)
+    init <- initial.val(margin.name,Y.fit)
+    res0 <- optim(par=init, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
     res1 <- optim(par=res0$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
     res2 <- optim(par=res1$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
     k1 <- if (margin.name[1]=='exp') 1 else 2
@@ -546,60 +606,66 @@ cl <- makeCluster(num_cores)
 registerDoParallel(cl)
 
 load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/00_Dataset','index.daily.RData'))
-Y.daily.return <- as.matrix(100*abs(1-index.daily.dropna[,c('return_ftse','return_dax')]))
-thres <- apply(Y.daily.return, 2, quantile, 0.8)
+
+
+library("rugarch")
+spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+                   distribution.model = "norm")
+
+# Fit the GARCH model to the daily returns
+fit.ftse <- ugarchfit(spec = spec, data = -log(index.daily.dropna$return_ftse))
+residuals.ftse <- residuals(fit.ftse, standardize = TRUE)
+
+fit.cac <- ugarchfit(spec = spec, data = -log(index.daily.dropna$return_cac))
+residuals.cac <- residuals(fit.cac, standardize = TRUE)
+
+fit.dax <- ugarchfit(spec = spec, data = -log(index.daily.dropna$return_dax))
+residuals.dax <- residuals(fit.dax, standardize = TRUE)
+
+plot(as.numeric(residuals.ftse), as.numeric(residuals.dax))
+
+plot(as.numeric(residuals.ftse), as.numeric(residuals.cac))
+
+plot(as.numeric(residuals.dax), as.numeric(residuals.cac))
+
+# Y.daily.return <- as.matrix(100*abs(1-index.daily.dropna[,c('return_ftse','return_dax')]))
+Y.daily.return <- cbind('log.ftse.return'=as.numeric(residuals.ftse), 'log.dax.return'=as.numeric(residuals.dax) )
+thres <- apply(Y.daily.return, 2, quantile, 0.6)
 Y.fit <-  Y.daily.return[Y.daily.return[,1]<=thres[1] & Y.daily.return[,2]<=thres[2],]
-Y.fit[Y.fit < 10^-6] <- 10^-6
+
 plot(Y.fit)
 
-c('norm','exp','gamma','lnorm','weibull')
-initial.val <- function(margin.name, data=Y.fit){
-  initial <- 1
-  for (i in 1:2){
-    name <- margin.name[i]
-    if (name=='norm'){
-      initial <- c(initial, mean(data[,i]), log(sd(data[,i])))
-    }else if( name== 'exp'){
-      initial <- c(initial, log(1/mean(data[,i])), 1)
-    }else if( name == 'gamma'){
-      initial <- c(initial,  (log(mean(data[,i]) / sd(data[,i]))^2), log(mean(data[,i]) / var(data[,i])))
-    }else if( name=='lnorm'){
-      initial <- c(initial,  mean(log(data[,i])), log(sd(log(data[,i]))))
-    }else{
-      shape <- 1.2
-      initial <- c(initial,  log(shape) , log(mean(data[,i]) / gamma(1 + 1/shape) ))
-    }
-  }
-  return(initial)
-}
-initial.val(c('norm','norm'),Y.fit)
 
-for (margin1.name in margin.family){
-  for (margin2.name in margin.family){
-    margin.name <- c(margin1.name,margin2.name)
-    print(margin.name)
-    init <- initial.val(margin.name,Y.fit)
-    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    k1 <- if (margin.name[1]=='exp') 1 else 2
-    k2 <- if (margin.name[2]=='exp') 1 else 2
-    aic <- 2*(k1+k2) + 2*res2$value
-    data.frame('margin1'=margin1.name, 'margin2'=margin2.name, 'nll'= res2$value, 'aic'=aic)
-    
-  }
-}
+cop.family <- c('normal','clayton','gumbel','frank','joe','plackett')
+margin.family <- c('norm','exp','gamma','lnorm','weibull','lst')
+
+# for (margin1.name in margin.family){
+#   for (margin2.name in margin.family){
+#     margin.name <- c(margin1.name,margin2.name)
+#     print(margin.name)
+#     init <- initial.val(margin.name,Y.fit)
+#     res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+#     res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+#     res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+#     k1 <- if (margin.name[1]=='exp') 1 else if (margin.name[1]=='lst') 3 else 2
+#     k2 <- if (margin.name[2]=='exp') 1 else if (margin.name[2]=='lst') 3 else 2
+#     aic <- 2*(k1+k2) + 2*res2$value
+#     data.frame('margin1'=margin1.name, 'margin2'=margin2.name, 'nll'= res2$value, 'aic'=aic)
+# 
+#   }
+# }
 
 
 res.margin <- foreach(margin1.name = margin.family , .combine='rbind',.packages='copula') %:%
   foreach(margin2.name = margin.family, .combine='rbind',.packages='copula') %dopar% {
     margin.name <- c(margin1.name,margin2.name)
     init <- initial.val(margin.name,Y.fit)
-    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-    k1 <- if (margin.name[1]=='exp') 1 else 2
-    k2 <- if (margin.name[2]=='exp') 1 else 2
+    res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+    res1 <- optim(par=res0$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+    res2 <- optim(par=res1$par, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+    k1 <- if (margin.name[1]=='exp') 1 else if (margin.name[1]=='lst') 3 else 2
+    k2 <- if (margin.name[2]=='exp') 1 else if (margin.name[2]=='lst') 3 else 2
     aic <- 2*(k1+k2) + 2*res2$value
     data.frame('margin1'=margin1.name, 'margin2'=margin2.name, 'nll'= res2$value, 'aic'=aic)
   }
@@ -608,10 +674,11 @@ best.margin <- as.character(res.margin[which.min(res.margin$aic),c('margin1','ma
 
 
 res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula') %dopar% {
+  margin.name <- best.margin
   init <- initial.val(margin.name,Y.fit)
-  res0 <- optim(par=init, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-  res1 <- optim(par=res0$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
-  res2 <- optim(par=res1$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=c(0,0),ubound=thres )
+  res0 <- optim(par=init, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+  res1 <- optim(par=res0$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
+  res2 <- optim(par=res1$par, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
   k1 <- if (margin.name[1]=='exp') 1 else 2
   k2 <- if (margin.name[2]=='exp') 1 else 2
   aic <- 2*(k1+k2+1) + 2*res2$value
@@ -620,7 +687,51 @@ res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula'
 
 best.bulk<- as.character(res.copula[which.min(res.copula$aic),c('copula','margin1','margin2')])
 
+thres <- apply(Y.fit, MARGIN = 2, quantile, 0.8)
+tail.cond <- (Y.fit[,1] > thres[1]) | (Y.fit[,2] > thres[2])
+Y.tail <- matrix(c(Y.fit[tail.cond,1] - thres[1], Y.fit[tail.cond,2] - thres[2]), ncol=2)
+plot(Y.tail)
+
+fit.RevExpU<-fit.MGPD.RevExpU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=F,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
+
+fit.RevExpU.1<-fit.MGPD.RevExpU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=T,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
+
+fit.RevExpU.2<-fit.MGPD.RevExpU(x=Y.tail, u=rep(0,2), std=F, dep.scale.fix=F,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
+
+ubound.tail <- rep(8,2)
+fit.RevExpU.t <- fit.tMGPD.RevExpU(Y.tail, rep(-Inf,2), ubound.tail)
+
+par <- fit.RevExpU$mle
+a <- par[1:2]
+sig <- par[3:4]
+gamma <- par[5:6]
+Y.sim <- sim.RevExpU.MGPD(n=100,d=2, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)$X
+plot(Y.sim)
+Y.sim.t <- Y.sim[Y.sim[,1]<ubound.tail[1] & Y.sim[,2]<ubound.tail[2],]
+plot(Y.sim.t)
+
+optim(nll.powunif.GPD, par=fit.RevExpU$mle, u=rep(min(Y.tail)-0.01,2), x=Y.tail, lamfix=T, a.ind=1:2,
+      sig.ind=3:4, gamma.ind=5:6, marg.scale.ind=1:2, marg.shape.ind=1:2, control=list(maxit=5000,reltol=1e-6))
+
+optim(nll.powunif.GPD.1, par=rep(1,6),  x=Y.tail)
 
 
+-nim_nll_powunif_GPD_MAT(theta,Y.tail)
+-nim_nll_powunif_GPD_MAT(fit.RevExpU$mle,Y.tail)
+
+fitGumbelU<-fit.MGPD.GumbelU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=T, dep.loc.fix = TRUE, marg.scale.ind = c(1,2), marg.shape.ind = c(1,2), maxit=5000)
+
+Y.sim2 <- sim.GumbelU.MGPD(n=1000,d=2,a=fitGumbelU$mle[1],beta=c(0,0),sig=fitGumbelU$mle[2:3],gamma=fitGumbelU$mle[4:5],MGPD=TRUE,std=FALSE)
+plot(Y.sim2)
 
 
+d<-2
+a<-c(1.5) # common shape (quicker estimation)
+beta<-c(0,0)
+sig<-c(2,2)
+gamma<-c(0.1,0.1)
+
+# Final beta parameter fixed at zero in estimation, so needs to be relative to this
+
+# Simulate with (conditionally) GP(sig,gamma) and (conditionally) exponential margins 
+X<-sim.GumbelU.MGPD(n=1000,d=d, a=a, beta=beta, sig=sig, gamma=gamma, MGPD = T,std=T)
