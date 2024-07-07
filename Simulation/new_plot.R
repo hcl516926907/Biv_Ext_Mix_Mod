@@ -328,6 +328,140 @@ trunc.prob(lower=c(-0.2,-0.2),upper=c(4,5),a=c(4,1),sig=c(0.1,2),gamma=c(0.5,0.5
 
 
 
+
+fY.Fre.a<-function(y,a,lam)
+{
+  d<-length(y)
+  
+  EM<-gamma(1-1/a)*(sum(lam^a))^(1/a)
+  c1<-gamma(d-1/a)*a^(d-1) / EM
+  num<-prod(y^(-a-1)*lam^a)
+  den<-sum((y/lam)^(-a))^(d-1/a)
+  
+  return(c1*num/den)
+}
+
+
+fX.Fre.a<-function(x,a,lam,sig,gamma)
+{
+  y<-BCi(x=x,gamma=gamma,sig=sig)
+  J<-Jac(x=x,gamma=gamma,sig=sig)
+  return(J*fY.Fre.a(y=y,a=a,lam=lam))
+}
+
+
+jointY1.gumbel <- function(x,y1,a, sig, gamma){
+  if (length(x)==1){
+    y <- c(y1,x)
+    res <- fX.Fre.a(y, lam=c(1,1), a=a, sig=sig, gamma=gamma)
+    if (is.na(res)) res <- 0
+  }else{
+    y <- cbind(rep(y1,length(x)),x)
+    res <- apply(y, MARGIN = 1, fX.Fre.a, lam=c(1,1),a=a, sig=sig, gamma=gamma)
+    res[is.na(res)] <- 0
+  }
+  return(res)
+}
+
+marginY1.gumbel <- function(y1, y2.low=-Inf, y2.upp=Inf, a, sig, gamma){
+  upp.para <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf  
+  upper <- min(y2.upp, upp.para)
+  
+  low.para <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
+  lower <- max(y2.low, low.para )
+  
+  if(y1 < 0){
+    res <- integrate(jointY1.gumbel, lower = 0, upper = upper, y1=y1, a=a,sig=sig, gamma=gamma)$value
+  }else{
+    res <- integrate(jointY1.gumbel, lower = lower, upper = upper, y1=y1, a=a,sig=sig, gamma=gamma)$value
+  }
+  
+  return(res)
+}
+
+marginY1.gumbel(-20, y2.upp=Inf, a=3, sig=c(1,1), gamma=c(0,1,0,1))
+marginY1.revexp(-20, y2.upp=Inf, a=3, sig=c(1,1), gamma=c(0,1,0,1))
+
+trunc.prob.gumbel <- function(lower=rep(-Inf,2),upper=rep(Inf,2),a,sig,gamma){
+  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
+  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
+  upper <- pmin(upper, c(upp.para1, upp.para2))
+  
+  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
+  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
+  lower <- pmax(lower, c(low.para1,low.para2) )
+  
+  double.int.Y1 <- function(x, y2.low=lower[2], y2.upp=upper[2], a=a, sig=sig, gamma=gamma){
+    sapply(x, marginY1.gumbel, y2.low = y2.low, y2.upp=y2.upp, a=a, sig=sig, gamma=gamma)
+  }
+  
+  p <- integrate(double.int.Y1, lower =lower[1], upper = upper[1] , a=a,sig=sig, gamma=gamma)$value
+  return(p)
+}
+
+trunc.prob.gumbel(a=2, sig=c(1,1), gamma=c(0, 0))
+
+trunc.norm.const.gumbel <- function(a,lower,upper){
+  lb1 <- lower[1]
+  lb2 <- lower[2]
+  ub1 <- upper[1]
+  ub2 <- upper[2]
+  
+  C <- gamma(2-1/a)/gamma(1-1/a)/2^(1/a)/(1-1/a)
+  if (exp(-a*lb1) < 10^9){
+    comp1 <- 2^(1/a)-(1+exp(-a*ub2))^(1/a)-(1+exp(-a*lb1))^(1/a)+(exp(-a*ub2)+exp(-a*lb1))^(1/a)
+  }else{
+    comp1 <- 2^(1/a)-(1+exp(-a*ub2))^(1/a)
+  }
+
+  if(exp(-a*lb2) < 10^9){
+    comp2 <- (exp(-a*lb2)+exp(-a*ub1))^(1/a) - (exp(-a*ub2)+exp(-a*ub1))^(1/a) - (exp(-a*lb2)+1)^(1/a) + (exp(-a*ub2)+1)^(1/a)
+  }else{
+    comp2 <-  - (exp(-a*ub2)+exp(-a*ub1))^(1/a)  + (exp(-a*ub2)+1)^(1/a)
+  }
+ 
+  
+  return(C*(comp1 + comp2))
+  
+}
+trunc.norm.const.gumbel(4, c(-4,-3),c(4,5))
+trunc.prob.gumbel(a=4, sig=c(1,1), gamma=c(0, 0),lower= c(-4,-3),upper=c(4,5))
+
+
+trunc.norm.const.gumbel(4, c(-Inf,-Inf),c(Inf,Inf))
+
+trunc.norm.const.gumbel.GPD <- function(a, sig, gamma, lower, upper ){
+  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
+  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
+  upper <- pmin(upper, c(upp.para1, upp.para2))
+  
+  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
+  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
+  lower <- pmax(lower, c(low.para1,low.para2) )
+  # can't do it vectorized because the formula for dim 1 and dim 2 may differ depending on the value of gamma
+  for (i in 1:length(sig)){
+    if (abs(gamma[i])<10^-6){
+      lower[i] <- lower[i]/sig[i]
+      upper[i] <- upper[i]/sig[i]
+    }else{
+      if(is.na(log(gamma[i]/sig[i]*upper[i]+1+ 10^-6))) print(list(gamma=gamma,sig=sig,upper=upper))
+      lower[i] <- log(gamma[i]/sig[i]*lower[i]+1 + 10^-6)/gamma[i]
+      upper[i] <- log(gamma[i]/sig[i]*upper[i]+1 + 10^-6)/gamma[i]
+      
+    }
+  }
+  return(trunc.norm.const.gumbel(a,lower,upper))
+}
+
+
+
+trunc.prob.gumbel(a=2, sig=c(2,0.5), gamma=c(0.2, -0.3),lower=c(-2,-3), upper=c(4,5))
+trunc.norm.const.gumbel.GPD(a=2, sig=c(2,0.5), gamma=c(0.2, -0.3),lower=c(-2,-3), upper=c(4,5))
+
+
+trunc.norm.const.gumbel(2, c(-Inf,-Inf),c(10,10))
+trunc.prob.gumbel(a=2, sig=c(1,1), gamma=c(0, 0),lower= c(-Inf,-Inf),upper=c(10,10))
+
 x.seq <- seq(-2.499,10,0.1) 
 y.tail <- sapply(x.seq, marginY1.revexp,y2.low=-5, y2.upp=Inf, a=a, sig=c(5,5), gamma=c(2,2) )
 plot(x.seq,y.tail,type='l')
