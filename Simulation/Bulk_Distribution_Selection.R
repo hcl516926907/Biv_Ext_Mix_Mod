@@ -5,7 +5,7 @@ source(file.path(dir.work, "Simulation/Gumbel_U_Functions.r"))
 source(file.path(dir.work, "Simulation/CommonFunctions.r"))
 
 # install.packages("gsl", dependencies = TRUE, INSTALL_opts = '--no-lock')
-# install.packages('copula')
+# install.packages('copula',dependencies = TRUE, INSTALL_opts = '--no-lock')
 library(copula)
 library(extraDistr)
 i <- 1
@@ -434,22 +434,24 @@ transform_marginal_params <- function(margins, params.margin) {
 
 transform_marginal_params(c('norm','lst'),c(1,-22,-3,4,5))
 
+
 nll.bulk <- function(par, cop.name, margin.name, Y, lbound, ubound){
   cop <- create_copula(cop.name, par[1])
   margin.para <- transform_marginal_params(margin.name, par[-1])
   
   joint.dist <- mvdc(cop, margins = margin.name, 
-                   
-                   paramMargins=list(margin.para[[1]],
-                                     
-                                     margin.para[[2]])
+                     
+                     paramMargins=list(margin.para[[1]],
+                                       
+                                       margin.para[[2]])
   )
   
   p1 <- pMvdc(ubound, joint.dist)
   p2 <- pMvdc(lbound, joint.dist)
   p <- p1 - p2 + 10^-6
   dbulk <- dMvdc(Y, joint.dist,log=T)
-  dbulk[which(dbulk==-Inf)] <- -10^10
+  dbulk[which(dbulk==-Inf | is.nan(dbulk))] <- -10^10
+  
   return(-sum(dbulk) + nrow(Y)*log(p))
   
 }
@@ -630,8 +632,10 @@ plot(as.numeric(residuals.ftse), as.numeric(residuals.cac))
 plot(as.numeric(residuals.dax), as.numeric(residuals.cac))
 
 # Y.daily.return <- as.matrix(100*abs(1-index.daily.dropna[,c('return_ftse','return_dax')]))
-Y.daily.return <- cbind('log.ftse.return'=as.numeric(residuals.ftse), 'log.dax.return'=as.numeric(residuals.dax) )
-thres <- apply(Y.daily.return, 2, quantile, 0.6)
+# Y.daily.return <- cbind('log.ftse.return'=as.numeric(residuals.ftse), 'log.dax.return'=as.numeric(residuals.dax) )
+Y.daily.return <- cbind('log.cac.return'=as.numeric(residuals.cac), 'log.dax.return'=as.numeric(residuals.dax) )
+
+thres <- apply(Y.daily.return, 2, quantile, 0.7)
 Y.fit <-  Y.daily.return[Y.daily.return[,1]<=thres[1] & Y.daily.return[,2]<=thres[2],]
 
 plot(Y.fit)
@@ -657,8 +661,8 @@ margin.family <- c('norm','exp','gamma','lnorm','weibull','lst')
 # }
 
 
-res.margin <- foreach(margin1.name = margin.family , .combine='rbind',.packages='copula') %:%
-  foreach(margin2.name = margin.family, .combine='rbind',.packages='copula') %dopar% {
+res.margin <- foreach(margin1.name = margin.family , .combine='rbind',.packages=c('copula','extraDistr')) %:%
+  foreach(margin2.name = margin.family, .combine='rbind',.packages=c('copula','extraDistr')) %dopar% {
     margin.name <- c(margin1.name,margin2.name)
     init <- initial.val(margin.name,Y.fit)
     res0 <- optim(par=init, nll.bulk,cop.name='normal',margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
@@ -673,7 +677,7 @@ res.margin <- foreach(margin1.name = margin.family , .combine='rbind',.packages=
 best.margin <- as.character(res.margin[which.min(res.margin$aic),c('margin1','margin2')])
 
 
-res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula') %dopar% {
+res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages=c('copula','extraDistr')) %dopar% {
   margin.name <- best.margin
   init <- initial.val(margin.name,Y.fit)
   res0 <- optim(par=init, nll.bulk,cop.name=cop.name,margin.name=margin.name, Y=Y.fit, lbound=rep(-Inf,2),ubound=thres )
@@ -687,28 +691,20 @@ res.copula <- foreach(cop.name = cop.family, .combine='rbind',.packages='copula'
 
 best.bulk<- as.character(res.copula[which.min(res.copula$aic),c('copula','margin1','margin2')])
 
-thres <- apply(Y.fit, MARGIN = 2, quantile, 0.8)
+thres <- apply(Y.fit, MARGIN = 2, quantile, 0.85)
 tail.cond <- (Y.fit[,1] > thres[1]) | (Y.fit[,2] > thres[2])
 Y.tail <- matrix(c(Y.fit[tail.cond,1] - thres[1], Y.fit[tail.cond,2] - thres[2]), ncol=2)
 plot(Y.tail)
 
-fit.RevExpU<-fit.MGPD.RevExpU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=F,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
-
-fit.RevExpU.1<-fit.MGPD.RevExpU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=T,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
-
-fit.RevExpU.2<-fit.MGPD.RevExpU(x=Y.tail, u=rep(0,2), std=F, dep.scale.fix=F,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
-
-ubound.tail <- rep(8,2)
-fit.RevExpU.t <- fit.tMGPD.RevExpU(Y.tail, rep(-Inf,2), ubound.tail)
+fit.RevExpU<-fit.MGPD.RevExpU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=T,dep.loc.fix=TRUE, marg.scale.ind = c(1,2), marg.shape.ind = 1:2, maxit=5000)
 
 par <- fit.RevExpU$mle
-a <- par[1:2]
-sig <- par[3:4]
-gamma <- par[5:6]
-Y.sim <- sim.RevExpU.MGPD(n=100,d=2, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)$X
-plot(Y.sim)
-Y.sim.t <- Y.sim[Y.sim[,1]<ubound.tail[1] & Y.sim[,2]<ubound.tail[2],]
-plot(Y.sim.t)
+a <- par[1]
+sig <- par[2:3]
+gamma <- par[4:5]
+Y.sim <- sim.RevExpU.MGPD(n=1000,d=2, a=a, beta=c(0,0), sig=sig, gamma=gamma, MGPD = T,std=T)$X
+plot(sweep(Y.sim,2,thres,"+"))
+
 
 optim(nll.powunif.GPD, par=fit.RevExpU$mle, u=rep(min(Y.tail)-0.01,2), x=Y.tail, lamfix=T, a.ind=1:2,
       sig.ind=3:4, gamma.ind=5:6, marg.scale.ind=1:2, marg.shape.ind=1:2, control=list(maxit=5000,reltol=1e-6))
@@ -722,8 +718,9 @@ optim(nll.powunif.GPD.1, par=rep(1,6),  x=Y.tail)
 fitGumbelU<-fit.MGPD.GumbelU(x=Y.tail, u=rep(min(Y.tail)-0.01,2), std=F, dep.scale.fix=T, dep.loc.fix = TRUE, marg.scale.ind = c(1,2), marg.shape.ind = c(1,2), maxit=5000)
 
 Y.sim2 <- sim.GumbelU.MGPD(n=1000,d=2,a=fitGumbelU$mle[1],beta=c(0,0),sig=fitGumbelU$mle[2:3],gamma=fitGumbelU$mle[4:5],MGPD=TRUE,std=FALSE)
-plot(Y.sim2)
+plot(sweep(Y.sim2,2,thres,"+"))
 
+plot(sweep(Y.tail,2,thres,"+"))
 
 d<-2
 a<-c(1.5) # common shape (quicker estimation)
