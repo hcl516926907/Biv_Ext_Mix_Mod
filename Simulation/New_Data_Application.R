@@ -2,13 +2,13 @@ dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
 source(file.path(dir.work, "Simulation/RevExp_U_Functions.r"))
 source(file.path(dir.work, "Simulation/CommonFunctions.r"))
-
+source(file.path(dir.work, "Simulation/Gumbel_U_Functions.r"))
 
 load_install_packages <- function(packages) {
   for(package in packages){
     # If the package is not installed, install it
     if(!require(package, character.only = TRUE)) {
-      install.packages(package, dependencies = TRUE,repos='http://cran.us.r-project.org')
+      install.packages(package, dependencies = TRUE,INSTALL_opts = '--no-lock')
       # Load the package after installation
       library(package, character.only = TRUE)
     } else {
@@ -19,7 +19,7 @@ load_install_packages <- function(packages) {
 }
 
 # List the packages you want to load
-packages <- c("nimble", "foreach","doSNOW","parallel",'copula','extraDistr')  
+packages <- c("nimble", "foreach","doSNOW","parallel",'gsl','copula','extraDistr','rugarch')  
 
 load_install_packages(packages)
 
@@ -39,7 +39,6 @@ load(file=file.path('/home/pgrad2/2448355h/My_PhD_Project/00_Dataset','index.dai
 plot(index.daily.dropna[,c('return_ftse','return_dax')])
 
 
-library("rugarch")
 spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
                    mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
                    distribution.model = "std")
@@ -78,9 +77,8 @@ acf(residuals(fit.dax, standardize=TRUE)^2, main="ACF of Squared Standardized Re
 
 acf(index.daily.dropna$return_dax^2, main="ACF of Squared Standardized Residuals")
 
-Y <- cbind('log.ftse.return'=as.numeric(residuals.ftse), 'log.dax.return'=as.numeric(residuals.dax) )
-plot(Y)
-
+# Y <- cbind('log.ftse.return'=as.numeric(residuals.ftse), 'log.dax.return'=as.numeric(residuals.dax) )
+# plot(Y)
 
 Y <- cbind('log.cac.return'=as.numeric(residuals.cac), 'log.dax.return'=as.numeric(residuals.dax) )
 plot(Y)
@@ -189,13 +187,13 @@ nll.powunif.GPD.1<-function(theta,x)
     d<-dim(x)[2]
   }
   
-  a<-theta[1:2]
+  a<- rep(theta[1],2)
   
   lam<-rep(1,d)
   
   
-  sig<-theta[3:4]
-  gamma<-theta[5:6]
+  sig<-theta[2:3]
+  gamma<-theta[4:5]
   
   
   rej<-NULL
@@ -248,16 +246,69 @@ nll.powunif.GPD.1<-function(theta,x)
   return(nll)
 }
 
+nll.Frechet.a.GPD.1<-function(theta,x)
+{
+  u <- min(x)-0.01
+  d<-2
+  a<-theta[1]
+  lam<-rep(1,2)
+  
+  sig<-theta[2:3]
+  gamma<-theta[4:5]
+  
+  
+  # check data respect marginal constraints (i.e. no x[,j]>-sig[j]/gamma[j] if gamma[j]<0)
+  chk<-rep(FALSE,d)
+  for(j in 1:d)
+  {
+    if(gamma[j]<0){
+      chk[j]<-any(x[,j]> (-sig[j]/gamma[j]))
+    }
+    if(gamma[j]>0){
+      chk[j]<-any(x[,j]< (-sig[j]/gamma[j]))
+    } 
+    
+    
+  }
+  
+  if(any(lam<0.01)|any(sig<0.001)|any(a<=1)|any(chk)){return(10e7)}
+  
+  
+  ind<-apply(x,1,comp.gt,u=u)
+  x.uc<-x[ind,]
+  x.pc<-x[!ind,]
+  
+  L<-apply(x.uc,1,fX.Fre.a,a=a,lam=lam,sig=sig,gamma=gamma)
+  nll.uc<--sum(log(L))
+  
+  if(sum(!ind)>0)
+  {
+    L2<-apply(x.pc,1,fX.Fre.a.cens,a=a,lam=lam,u=u,sig=sig,gamma=gamma)
+    nll.pc<--sum(log(L2))
+  }else{nll.pc<-0}
+  
+  if (is.nan(nll.uc)|is.nan(nll.pc)|(nll.uc==-Inf)|(nll.uc==Inf)){
+    return(10e7)
+  }
+  
+  nll<-nll.uc+nll.pc
+  
+  return(nll)
+  
+}
 
 
 
 
-nim_nll_powunif_GPD_SG <- nimbleRcall(function(theta=double(1), x=double(1)){}, 
-                                      Rfun = 'nll.powunif.GPD.1',
-                                      returnType = double(0))
 
-nim_nll_powunif_GPD_MAT <- nimbleRcall(function(theta=double(1), x=double(2)){}, 
+
+
+nim_nll_revexp_GPD_MAT <- nimbleRcall(function(theta=double(1), x=double(2)){}, 
                                        Rfun = 'nll.powunif.GPD.1',
+                                       returnType = double(0))
+
+nim_nll_gumbel_GPD_MAT <- nimbleRcall(function(theta=double(1), x=double(2)){}, 
+                                       Rfun = 'nll.Frechet.a.GPD.1',
                                        returnType = double(0))
 
 trunc.norm.const <- function(a,lower,upper){
@@ -310,11 +361,14 @@ nim_trunc.norm.const.GPD <- nimbleRcall(function(a=double(1), sig=double(1), gam
                                         returnType = double(0))
 
 dbiextmix <- nimbleFunction(
-  run = function(x=double(2), thres=double(1), params.bulk=double(1), bulk.dist.name=double(1),
+  run = function(x=double(2), thres=double(1), params.bulk=double(1), total.dist.name=double(1),
                  theta=double(1),  
                  lower=double(1),upper=double(1),
                  log = logical(0, default = 0)) {
     returnType(double(0))
+    
+    bulk.dist.name <- total.dist.name[1:3]
+    tail.dist.name <- total.dist.name[4]
     
     cond <- (x[,1]>thres[1]) | (x[,2]>thres[2])
     n.tail <- sum(cond)
@@ -331,8 +385,8 @@ dbiextmix <- nimbleFunction(
     dbulk.res <- dbulk(y.bulk, params.bulk, bulk.dist.name ,lbound.bulk,thres)
     pi <- dbulk.res[1]
     
-    sig <- theta[3:4]
-    gamma <- theta[5:6]
+    sig <- theta[2:3]
+    gamma <- theta[4:5]
     eta <- -sig/gamma
     eta[which(gamma<=0)] <- -Inf
     
@@ -345,12 +399,22 @@ dbiextmix <- nimbleFunction(
         y.min[i] <- min(y.tail[,i])
       }
       if (all(y.min>eta)){
-        ll.tail <- -nim_nll_powunif_GPD_MAT(x=y.tail, theta=theta)
-        
-        den <- nim_trunc.norm.const.GPD(a=theta[1:2], sig=theta[3:4], gamma=theta[5:6],
-                                        lower=lbound.tail-thres,upper=ubound.tail-thres)
-        
-        ll.tail <- ll.tail - n.tail*log(den)
+        if (tail.dist.name==1){
+          print(1)
+          # y.tail also needs to be truncated. TBD
+          ll.tail <- -nim_nll_revexp_GPD_MAT(x=y.tail, theta=theta)
+          
+          den <- nim_trunc.norm.const.GPD(a=rep(theta[1],2), sig=theta[2:3], gamma=theta[4:5],
+                                          lower=lbound.tail-thres,upper=ubound.tail-thres)
+          
+          ll.tail <- ll.tail - n.tail*log(den)
+        }else{
+          ## truncation to be done
+          ll.tail <- -nim_nll_gumbel_GPD_MAT(x=y.tail, theta=theta)
+          
+          ll.tail <- ll.tail
+        }
+
       }else{
         ll.tail <- -10^10
       }
@@ -378,7 +442,7 @@ dbiextmix <- nimbleFunction(
 
 rbiextmix <- nimbleFunction(
   run = function(n=integer(0), thres=double(1), 
-                 params.bulk = double(1), bulk.dist.name=double(1),
+                 params.bulk = double(1), total.dist.name=double(1),
                  theta=double(1), 
                  lower=double(1), upper=double(1)) {
     returnType(double(2))
@@ -389,10 +453,10 @@ rbiextmix <- nimbleFunction(
 
 registerDistributions(list(
   dbiextmix = list(
-    BUGSdist = "dbiextmix(thres, params.bulk, bulk.dist.name,
+    BUGSdist = "dbiextmix(thres, params.bulk, total.dist.name,
                  theta,  lower, upper)",
     types = c('value = double(2)', 'thres = double(1)', 'params.bulk = double(1)',
-              'bulk.dist.name= double(1)', 'theta=double(1)',
+              'total.dist.name= double(1)', 'theta=double(1)',
               'lower = double(1)', 'upper = double(1)')
   )))
 
@@ -401,7 +465,7 @@ registerDistributions(list(
 BivExtMixcode <- nimbleCode({
   
   for (i in 1:2)
-    thres[i] ~ T(dnorm(0, sd=20),min.thres[i],max.thres[i])
+    thres[i] ~ T(dnorm(mean.thres[i], sd=0.1), min.thres[i],max.thres[i])
   
   # this is for gumbel copula!
   params.bulk[1] ~  dunif(1,20)
@@ -416,24 +480,31 @@ BivExtMixcode <- nimbleCode({
   params.bulk[6] ~  dnorm(0, sd=20)
   params.bulk[7] ~  dunif(0,20)
   
+  if (total.dist.name[4]==1){
+    theta[1] ~ dunif(0,20)
+  }else{
+    theta[1] ~ dunif(1,20)
+  }
+  
   # priors for sig
-  for (i in 1:4)
+  for (i in 2:3)
     theta[i] ~ dunif(0,20)
   # priors for gamma 
-  for (i in 5:6)
+  for (i in 4:5)
     theta[i] ~ dunif(-1,1)
   
-  y[1:N,1:2] ~ dbiextmix(thres=thres[1:2], params.bulk=params.bulk[1:7], bulk.dist.name=bulk.dist.name[1:3],
-                         theta=theta[1:6],  
+  y[1:N,1:2] ~ dbiextmix(thres=thres[1:2], params.bulk=params.bulk[1:7], total.dist.name=total.dist.name[1:4],
+                         theta=theta[1:5],  
                          lower=lbound[1:4],upper=ubound[1:4])
   
 })
 
 dat <- Y
 BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = nrow(dat), 
-                                                              bulk.dist.name=c(3,6,6), 
-                                                              min.thres = apply(dat,2,quantile,0.7),
+                                                              total.dist.name=c(3,6,6,2), 
+                                                              min.thres = apply(dat,2,quantile,0.01),
                                                               max.thres = apply(dat,2,quantile,0.99),
+                                                              mean.thres = apply(dat,2,quantile,0.85),
                                                               lbound = rep(-Inf, 4),
                                                               ubound = rep(Inf, 4)),
                               check = FALSE)
@@ -444,43 +515,49 @@ cBivExtMixmodel <- compileNimble(BivExtMixmodel, showCompilerOutput = TRUE)
 
 BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                enableWAIC = TRUE, time=TRUE)
-BivExtMixconf$removeSamplers(c('theta[1:6]', 'thres[1:2]','params.bulk[1:7]'))
-BivExtMixconf$addSampler(target = c('theta[1:6]', 'thres[1:2]','params.bulk[1:7]'), type = 'AF_slice')
+BivExtMixconf$removeSamplers(c('theta[1:5]', 'thres[1:2]','params.bulk[1:7]'))
+BivExtMixconf$addSampler(target = c('theta[1:5]', 'thres[1:2]','params.bulk[1:7]'), type = 'AF_slice')
+
 
 BivExtMixMCMC <- buildMCMC(BivExtMixconf)
 # BivExtMixMCMC$run(1)
 cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel, showCompilerOutput = TRUE)
 
 t1 <- Sys.time()
-results <- runMCMC(cBivExtMixMCMC, niter = 2500, nburnin=1,thin=1,
+results <- runMCMC(cBivExtMixMCMC, niter = 5000, nburnin=1,thin=1,
                    summary = TRUE, WAIC = TRUE,setSeed = 1234)
-t2 <- Sys.time() 
+t2 <- Sys.time()
 print(t2-t1)
-save(Y ,results, file=file.path(dir.out, 'daily_index_res.RData') )
+Y.fit <- Y
+save(Y.fit ,results, file=file.path(dir.out, 'daily_index_res_Gumbel_thres_0.01_sd_0.1.RData') )
 
 # load(file=file.path(dir.out, 'daily_index_res.RData') )
-plot(results$samples[600:2499,'theta[6]'],type='l')
+plot(results$samples[1000:2499,'params.bulk[7]'],type='l')
 
+post.burnin <- 1500:2499
 x <- Y
-theta=colMeans(results$samples[200:999,c('theta[1]','theta[2]','theta[3]','theta[4]'
-                                          ,'theta[5]','theta[6]')])
-thres=colMeans(results$samples[200:999,c('thres[1]','thres[2]')])
-params.bulk=colMeans(results$samples[200:999,c('params.bulk[1]','params.bulk[2]','params.bulk[3]',
+theta=colMeans(results$samples[post.burnin,c('theta[1]','theta[2]','theta[3]','theta[4]'
+                                          ,'theta[5]')])
+thres=colMeans(results$samples[post.burnin,c('thres[1]','thres[2]')])
+params.bulk=colMeans(results$samples[post.burnin,c('params.bulk[1]','params.bulk[2]','params.bulk[3]',
                                                 'params.bulk[4]','params.bulk[5]',
                                                'params.bulk[6]','params.bulk[7]')])
-
-bulk.dist.name=c(3,6,6)
-lower=rep(-Inf,4)
-upper=rep(Inf,4)
-dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, bulk.dist.name=bulk.dist.name,
-          theta=theta,
-          lower=rep(-Inf,4),upper=rep(Inf,4),
-          log = TRUE)
-
-dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, bulk.dist.name=bulk.dist.name,
-          theta=fit.RevExpU$mle,
-          lower=rep(-Inf,4),upper=rep(Inf,4),
-          log = TRUE)
-
-R_dbulk(Y, c(params.bulk[-7],0.8), bulk.dist.name=c(3,6,6),lbound=c(-Inf,2),ubound=thres)
-R_dbulk(Y, c(log(params.bulk[1]),params.bulk[c(-1,-7)],0.8), bulk.dist.name=c(3,6,6),lbound=c(-Inf,2),ubound=thres)
+# 
+# total.dist.name=c(3,6,6,1)
+# lower=rep(-Inf,4)
+# upper=rep(Inf,4)
+# thres <- c(2,2)
+# theta <- c(1.2,0.8,0.8,0.1,0.1)
+# 
+# dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, total.dist.name=total.dist.name,
+#           theta=theta,
+#           lower=rep(-Inf,4),upper=rep(Inf,4),
+#           log = TRUE)
+# 
+# dbiextmix(x=Y, thres=thres, params.bulk=params.bulk, bulk.dist.name=bulk.dist.name,
+#           theta=fit.RevExpU$mle,
+#           lower=rep(-Inf,4),upper=rep(Inf,4),
+#           log = TRUE)
+# 
+# R_dbulk(Y, c(params.bulk[-7],0.8), bulk.dist.name=c(3,6,6),lbound=c(-Inf,2),ubound=thres)
+# R_dbulk(Y, c(log(params.bulk[1]),params.bulk[c(-1,-7)],0.8), bulk.dist.name=c(3,6,6),lbound=c(-Inf,2),ubound=thres)
