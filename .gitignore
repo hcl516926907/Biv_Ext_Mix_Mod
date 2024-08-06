@@ -10,3 +10,5 @@ nohup.out
 /Simulation/*.swp
 *.Rproj
 .Rproj.user
+*.RData
+/Simulation_New/*.RData

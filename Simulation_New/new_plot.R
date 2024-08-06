@@ -1,14 +1,14 @@
 dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/Simulation"
-source(file.path(dir.work, "Simulation/RevExp_U_Functions.r"))
-source(file.path(dir.work, "Simulation/CommonFunctions.r"))
-
+source(file.path(dir.work, "Simulation_New/RevExp_U_Functions.r"))
+source(file.path(dir.work, "Simulation_New/CommonFunctions.r"))
+source(file.path(dir.work, "Simulation_New/Gumbel_U_Functions.r"))
 
 load_install_packages <- function(packages) {
   for(package in packages){
     # If the package is not installed, install it
     if(!require(package, character.only = TRUE)) {
-      install.packages(package, dependencies = TRUE,repos='http://cran.us.r-project.org')
+      install.packages(package, dependencies = TRUE,INSTALL_opts = '--no-lock')
       # Load the package after installation
       library(package, character.only = TRUE)
     } else {
@@ -19,7 +19,7 @@ load_install_packages <- function(packages) {
 }
 
 # List the packages you want to load
-packages <- c("nimble", "foreach","doSNOW","parallel",'copula')  
+packages <- c("nimble", "foreach","doSNOW","parallel",'gsl','copula','extraDistr')  
 
 
 load_install_packages(packages)
@@ -78,398 +78,6 @@ plot(Y)
 
 
 
-
-
-
-
-jointY1.revexp <- function(x,y1,a, sig, gamma){
-  if (length(x)==1){
-    y <- c(y1,x)
-    res <- fX.powunif(y, lam=c(1,1), a=a, sig=sig, gamma=gamma)
-    if (is.na(res)) res <- 0
-  }else{
-    y <- cbind(rep(y1,length(x)),x)
-    res <- apply(y, MARGIN = 1, fX.powunif, lam=c(1,1),a=a, sig=sig, gamma=gamma)
-    res[is.na(res)] <- 0
-  }
-  return(res)
-}
-
-marginY1.revexp <- function(y1, y2.low=-Inf, y2.upp=Inf, a, sig, gamma){
-  upp.para <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf  
-  upper <- min(y2.upp, upp.para)
-  
-  low.para <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- max(y2.low, low.para )
-  
-  if(y1 < 0){
-    res <- integrate(jointY1.revexp, lower = 0, upper = upper, y1=y1, a=a,sig=sig, gamma=gamma)$value
-  }else{
-    res <- integrate(jointY1.revexp, lower = lower, upper = upper, y1=y1, a=a,sig=sig, gamma=gamma)$value
-  }
-  
-  return(res)
-}
-
-
-marginY1.revexp(-10, y2.upp=Inf, a=a, sig=sig, gamma=gamma)
-
-jointY2.revexp <- function(x,y2,a, sig, gamma){
-  if (length(x)==1){
-    y <- c(x,y2)
-    res <- fX.powunif(y, lam=c(1,1), a=a, sig=sig, gamma=gamma)
-    if (is.na(res)) res <- 0
-  }else{
-    y <- cbind(x, rep(y2,length(x)))
-    res <- apply(y, MARGIN = 1, fX.powunif, lam=c(1,1),a=a, sig=sig, gamma=gamma)
-    res[is.na(res)] <- 0
-  }
-  return(res)
-}
-
-marginY2.revexp <- function(y2, y1.low=-Inf, y1.upp=Inf, a, sig, gamma){
-  upp.para <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-  upper <- min(y1.upp, upp.para)
-  
-  low.para <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-  lower <- max(y1.low, low.para )
-  
-  if(y2 < 0){
-    res <- integrate(jointY2.revexp, lower = 0, upper = upper, y2=y2, a=a,sig=sig, gamma=gamma)$value
-  }else{
-    res <- integrate(jointY2.revexp, lower = lower, upper = upper, y2=y2, a=a,sig=sig, gamma=gamma)$value
-  }
-  
-  return(res)
-}
-
-marginY2.revexp(-0.1,y1.upp=Inf, a=a, sig=sig, gamma=gamma)
-
-
-
-# standarized Y1,Y1<0 with sig=1 and gamma=0
-fY1_lt0.margin <- function(y,a,ub){
-  EM <- EM.pu(a=a,lam=c(1,1))
-  b <- 1/a
-  den <- EM*(1+sum(b))
-  num <- prod(b)*exp(b[1]*y)*(1-exp(-(1+b[1])*ub))/(1+b[1])
-  return(num/den)
-}
-
-fY1_lt0.margin(0,a=a,ub=Inf)
-
-marginY1.revexp(-500, y2.upp=Inf, a=a, sig=c(1,1), gamma=c(0,0))
-
-fY1_gt0.margin <- function(y,a,lb, ub){
-  EM <- EM.pu(a=a,lam=c(1,1))
-  b <- 1/a
-  num1 <- b[1]*(exp(-y)-exp(b[2]*lb-(1+b[2])*y))
-  den1 <- EM*(1+sum(b))
-  
-  num2 <- prod(b)*exp(-y)-prod(b)*exp(b[1]*y-(1+b[1])*ub)
-  den2 <- EM*(1+sum(b))*(1+b[1])
-  return(num1/den1+num2/den2)
-}
-
-fY1_gt0.margin(5,a=a, lb=-3, ub=Inf)
-marginY1.revexp(5, y2.low= -3 ,y2.upp=Inf, a=a, sig=c(1,1), gamma=c(0,0))
-
-tail.margin1 <- function(y, a,sig, gamma, tail.low, tail.upp){
-  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
-  upper <- pmin(tail.upp, c(upp.para1, upp.para2))
-  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- pmax(tail.low, c(low.para1,low.para2) )
-  
-  dtail <- 0
-  if ( y> lower[1] & y< upper[1]){
-    
-  for (i in 1:length(sig)){
-    if (abs(gamma[i])<10^-6){
-      lower[i] <- lower[i]/sig[i]
-      upper[i] <- upper[i]/sig[i]
-    }else{
-      if(is.na(log(gamma[i]/sig[i]*upper[i]+1+ 10^-6))) print(list(gamma=gamma,sig=sig,upper=upper))
-      lower[i] <- log(gamma[i]/sig[i]*lower[i]+1 + 10^-6)/gamma[i]
-      upper[i] <- log(gamma[i]/sig[i]*upper[i]+1 + 10^-6)/gamma[i]
-      
-    }
-  }
-
-    if (gamma[1]==0){
-      z <- y/sig[1]
-      jacob <- 1/sig[1]
-    }else{
-      z <- log(gamma[1]*y/sig[1]+1)/gamma[1]
-      jacob <- 1/(y*gamma[1]+sig[1])
-    }
-    
-    if (z<0){
-      dtail <- fY1_lt0.margin(z,a=a,ub=upper[2])*abs(jacob)
-    }else{
-      dtail <- fY1_gt0.margin(z,a=a,lb=lower[2], ub=upper[2])*abs(jacob)
-    }
-  }
-  return(dtail)
-}
-
-marginY1.revexp(1, y2.low= -3 ,y2.upp=Inf, a=a, sig=c(3,1), gamma=c(0,0))
-
-tail.margin1(1, a=a, sig=c(3,1), gamma=c(0,0), tail.low=c(-3,-3), tail.upp=c(Inf,Inf))
-
-marginY1.revexp(10, y2.low= -3 ,y2.upp=Inf, a=a, sig=c(3,1), gamma=c(0.5,0))
-tail.margin1(10, a=a, sig=c(3,1), gamma=c(0.5,0), tail.low=c(-3,-3), tail.upp=c(Inf,Inf))
-
-
-x.seq <- seq(-0.5,10,0.1)
-y <- sapply(x.seq, tail.margin1, a=a, sig=c(2,1), gamma=c(2,0), tail.low=c(-Inf,-3), tail.upp=c(Inf,Inf))
-plot(x.seq,y,type='l')
-
-y1 <- sapply(x.seq, marginY1.revexp, a=a, sig=c(2,1), gamma=c(2,0), y2.low= -3 ,y2.upp=Inf)
-plot(x.seq,y1,type='l')
-
-
-
-# standarized Y1,Y1<0 with sig=1 and gamma=0
-fY2_lt0.margin <- function(y,a,ub){
-  EM <- EM.pu(a=a,lam=c(1,1))
-  b <- 1/a
-  den <- EM*(1+sum(b))
-  num <- prod(b)*exp(b[2]*y)*(1-exp(-(1+b[2])*ub))/(1+b[2])
-  return(num/den)
-}
-
-fY2_lt0.margin(-5,a=a,ub=5)
-marginY2.revexp(-5, y1.upp=5, a=a, sig=c(1,1), gamma=c(0,0))
-
-fY2_gt0.margin <- function(y, a, lb, ub){
-  EM <- EM.pu(a=a,lam=c(1,1))
-  b <- 1/a
-  num1 <- b[2]*(exp(-y)-exp(b[1]*lb-(1+b[1])*y))
-  den1 <- EM*(1+sum(b))
-  
-  num2 <- prod(b)*exp(-y)-prod(b)*exp(b[2]*y-(1+b[2])*ub)
-  den2 <- EM*(1+sum(b))*(1+b[2])
-  
-  return(num1/den1+num2/den2)
-}
-fY2_gt0.margin(0.1,a=a, lb=-1,ub=5)
-marginY2.revexp(0.1, y1.low=-1, y1.upp=5, a=a, sig=c(1,1), gamma=c(0,0))
-
-
-trunc.prob <- function(lower=rep(-Inf,2),upper=rep(Inf,2),a,sig,gamma){
-  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
-  upper <- pmin(upper, c(upp.para1, upp.para2))
-  
-  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- pmax(lower, c(low.para1,low.para2) )
-  
-  double.int.Y1 <- function(x, y2.low=lower[2], y2.upp=upper[2], a=a, sig=sig, gamma=gamma){
-    sapply(x, marginY1.revexp, y2.low = y2.low, y2.upp=y2.upp, a=a, sig=sig, gamma=gamma)
-  }
-  
-  p <- integrate(double.int.Y1, lower =lower[1], upper = upper[1] , a=a,sig=sig, gamma=gamma)$value
-  return(p)
-}
-
-
-
-trunc.norm.const <- function(a,lower,upper){
-  lb1 <- lower[1]
-  lb2 <- lower[2]
-  ub1 <- upper[1]
-  ub2 <- upper[2]
-  EM <- EM.pu(a=a,lam=c(1,1))
-  b <- 1/a
-  
-  den1 <- EM*(1+sum(b))*(1+b[2])
-  num1 <- b[1]*(1-exp(-(1+b[2])*ub1))*(1-exp(b[2]*lb2))
-  
-  den2 <- EM*(1+sum(b))*(1+b[1])
-  num2 <- (1+b[1])*b[2]*(1-exp(-ub2))-b[2]*exp(b[1]*lb1)*(1-exp(-(1+b[1])*ub2))
-  
-  den3 <- EM*(1+sum(b))*(1+b[2])
-  num3 <- prod(b)*(1-exp(-ub2))-b[1]*(exp(-ub1)-exp(-(1+b[2])*ub1))
-  
-  return(num1/den1+num2/den2 + num3/den3)
-  
-}
-
-
-trunc.norm.const.GPD <- function(a, sig, gamma, lower, upper ){
-  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
-  upper <- pmin(upper, c(upp.para1, upp.para2))
-  
-  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- pmax(lower, c(low.para1,low.para2) )
-  # can't do it vectorized because the formula for dim 1 and dim 2 may differ depending on the value of gamma
-  for (i in 1:length(sig)){
-    if (abs(gamma[i])<10^-6){
-      lower[i] <- lower[i]/sig[i]
-      upper[i] <- upper[i]/sig[i]
-    }else{
-      if(is.na(log(gamma[i]/sig[i]*upper[i]+1+ 10^-6))) print(list(gamma=gamma,sig=sig,upper=upper))
-      lower[i] <- log(gamma[i]/sig[i]*lower[i]+1 + 10^-6)/gamma[i]
-      upper[i] <- log(gamma[i]/sig[i]*upper[i]+1 + 10^-6)/gamma[i]
-      
-    }
-  }
-  return(trunc.norm.const(a,lower,upper))
-}
-
-trunc.norm.const.GPD(a=c(4,1), sig=c(0.1,2), gamma=c(0.5,0.5),lower=c(-0.2,-0.2), upper=c(4,5))
-trunc.prob(lower=c(-0.2,-0.2),upper=c(4,5),a=c(4,1),sig=c(0.1,2),gamma=c(0.5,0.5))
-
-
-
-
-
-fY.Fre.a<-function(y,a,lam)
-{
-  d<-length(y)
-  
-  EM<-gamma(1-1/a)*(sum(lam^a))^(1/a)
-  c1<-gamma(d-1/a)*a^(d-1) / EM
-  num<-prod(y^(-a-1)*lam^a)
-  den<-sum((y/lam)^(-a))^(d-1/a)
-  
-  return(c1*num/den)
-}
-
-
-fX.Fre.a<-function(x,a,lam,sig,gamma)
-{
-  y<-BCi(x=x,gamma=gamma,sig=sig)
-  J<-Jac(x=x,gamma=gamma,sig=sig)
-  return(J*fY.Fre.a(y=y,a=a,lam=lam))
-}
-
-
-jointY1.gumbel <- function(x,y1,a, sig, gamma){
-  if (length(x)==1){
-    y <- c(y1,x)
-    res <- fX.Fre.a(y, lam=c(1,1), a=a, sig=sig, gamma=gamma)
-    if (is.na(res)) res <- 0
-  }else{
-    y <- cbind(rep(y1,length(x)),x)
-    res <- apply(y, MARGIN = 1, fX.Fre.a, lam=c(1,1),a=a, sig=sig, gamma=gamma)
-    res[is.na(res)] <- 0
-  }
-  return(res)
-}
-
-marginY1.gumbel <- function(y1, y2.low=-Inf, y2.upp=Inf, a, sig, gamma){
-  upp.para <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf  
-  upper <- min(y2.upp, upp.para)
-  
-  low.para <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- max(y2.low, low.para )
-  
-  if(y1 < 0){
-    res <- integrate(jointY1.gumbel, lower = 0, upper = upper, y1=y1, a=a,sig=sig, gamma=gamma)$value
-  }else{
-    res <- integrate(jointY1.gumbel, lower = lower, upper = upper, y1=y1, a=a,sig=sig, gamma=gamma)$value
-  }
-  
-  return(res)
-}
-
-marginY1.gumbel(-20, y2.upp=Inf, a=3, sig=c(1,1), gamma=c(0,1,0,1))
-marginY1.revexp(-20, y2.upp=Inf, a=3, sig=c(1,1), gamma=c(0,1,0,1))
-
-trunc.prob.gumbel <- function(lower=rep(-Inf,2),upper=rep(Inf,2),a,sig,gamma){
-  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
-  upper <- pmin(upper, c(upp.para1, upp.para2))
-  
-  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- pmax(lower, c(low.para1,low.para2) )
-  
-  double.int.Y1 <- function(x, y2.low=lower[2], y2.upp=upper[2], a=a, sig=sig, gamma=gamma){
-    sapply(x, marginY1.gumbel, y2.low = y2.low, y2.upp=y2.upp, a=a, sig=sig, gamma=gamma)
-  }
-  
-  p <- integrate(double.int.Y1, lower =lower[1], upper = upper[1] , a=a,sig=sig, gamma=gamma)$value
-  return(p)
-}
-
-trunc.prob.gumbel(a=2, sig=c(1,1), gamma=c(0, 0))
-
-trunc.norm.const.gumbel <- function(a,lower,upper){
-  lb1 <- lower[1]
-  lb2 <- lower[2]
-  ub1 <- upper[1]
-  ub2 <- upper[2]
-  
-  C <- gamma(2-1/a)/gamma(1-1/a)/2^(1/a)/(1-1/a)
-  if (exp(-a*lb1) < 10^9){
-    comp1 <- 2^(1/a)-(1+exp(-a*ub2))^(1/a)-(1+exp(-a*lb1))^(1/a)+(exp(-a*ub2)+exp(-a*lb1))^(1/a)
-  }else{
-    comp1 <- 2^(1/a)-(1+exp(-a*ub2))^(1/a)
-  }
-
-  if(exp(-a*lb2) < 10^9){
-    comp2 <- (exp(-a*lb2)+exp(-a*ub1))^(1/a) - (exp(-a*ub2)+exp(-a*ub1))^(1/a) - (exp(-a*lb2)+1)^(1/a) + (exp(-a*ub2)+1)^(1/a)
-  }else{
-    comp2 <-  - (exp(-a*ub2)+exp(-a*ub1))^(1/a)  + (exp(-a*ub2)+1)^(1/a)
-  }
- 
-  
-  return(C*(comp1 + comp2))
-  
-}
-trunc.norm.const.gumbel(4, c(-4,-3),c(4,5))
-trunc.prob.gumbel(a=4, sig=c(1,1), gamma=c(0, 0),lower= c(-4,-3),upper=c(4,5))
-
-
-trunc.norm.const.gumbel(4, c(-Inf,-Inf),c(Inf,Inf))
-
-trunc.norm.const.gumbel.GPD <- function(a, sig, gamma, lower, upper ){
-  upp.para1 <- if (gamma[1] <0) -sig[1]/gamma[1] else Inf  
-  upp.para2 <- if (gamma[2] <0) -sig[2]/gamma[2] else Inf 
-  upper <- pmin(upper, c(upp.para1, upp.para2))
-  
-  low.para1 <- if( gamma[1]>0) -sig[1]/gamma[1] else -Inf  
-  low.para2 <- if( gamma[2]>0) -sig[2]/gamma[2] else -Inf  
-  lower <- pmax(lower, c(low.para1,low.para2) )
-  # can't do it vectorized because the formula for dim 1 and dim 2 may differ depending on the value of gamma
-  for (i in 1:length(sig)){
-    if (abs(gamma[i])<10^-6){
-      lower[i] <- lower[i]/sig[i]
-      upper[i] <- upper[i]/sig[i]
-    }else{
-      if(is.na(log(gamma[i]/sig[i]*upper[i]+1+ 10^-6))) print(list(gamma=gamma,sig=sig,upper=upper))
-      lower[i] <- log(gamma[i]/sig[i]*lower[i]+1 + 10^-6)/gamma[i]
-      upper[i] <- log(gamma[i]/sig[i]*upper[i]+1 + 10^-6)/gamma[i]
-      
-    }
-  }
-  return(trunc.norm.const.gumbel(a,lower,upper))
-}
-
-
-
-trunc.prob.gumbel(a=2, sig=c(2,0.5), gamma=c(0.2, -0.3),lower=c(-2,-3), upper=c(4,5))
-trunc.norm.const.gumbel.GPD(a=2, sig=c(2,0.5), gamma=c(0.2, -0.3),lower=c(-2,-3), upper=c(4,5))
-
-
-trunc.norm.const.gumbel(2, c(-Inf,-Inf),c(10,10))
-trunc.prob.gumbel(a=2, sig=c(1,1), gamma=c(0, 0),lower= c(-Inf,-Inf),upper=c(10,10))
-
-x.seq <- seq(-2.499,10,0.1) 
-y.tail <- sapply(x.seq, marginY1.revexp,y2.low=-5, y2.upp=Inf, a=a, sig=c(5,5), gamma=c(2,2) )
-plot(x.seq,y.tail,type='l')
-
-
-
-
-
 dMvdc(c(1,1), gum.dist)
 
 bulk.margin.1 <- function(x, x2.low=0, x2.upp=u.x[2], dist=gum.dist){
@@ -511,12 +119,12 @@ BEMM.margin1 <- function(x, dist=gum.dist, thres=u.x, a.=a, sig.=sig, gamma.=gam
   
   
   pi <- pMvdc(thres, dist)
-  M <- trunc.norm.const.GPD(a., sig., gamma., tail.low,tail.upp)
+  M <- cdf.revexp.GPD(a., sig., gamma., tail.low,tail.upp)
   x.tail <- x-thres[1]
   dtail <- 0
   if (x.tail > tail.low[1] & x.tail < tail.upp[1]){
     # dtail <- marginY1.revexp(x-thres[1], y2.low=tail.low[2], y2.upp=tail.upp[2], a=a., sig=sig., gamma=gamma.)
-    dtail <- tail.margin1(x.tail, a=a., sig=sig., gamma=gamma., tail.low=tail.low, tail.upp=tail.upp)
+    dtail <- tail_revexp.margin1(x.tail, a=a., sig=sig., gamma=gamma., tail.low=tail.low, tail.upp=tail.upp)
   }
   tdtail <- dtail/M
   
@@ -545,12 +153,6 @@ y2 <- sapply(x.seq, BEMM.margin1, dist=gum.dist, thres=u.x, a.=a, sig.=sig, gamm
 plot(x.seq,y2,type='l')
 lines(x.seq, y.raw, col='red')
 
-test1 <- function(x){
-  sapply(x, BEMM.margin1, dist=gum.dist, thres=u.x, a.=a, sig.=c(2,1), gamma.=c(0.5,-0.8),
-         bulk.low=rep(0,2), tail.low=rep(0,2),tail.upp=rep(Inf,2) )
-}
-
-integrate(test1, lower =0, upper = Inf)$value
 
 #######################################plot for margin1#################
 library(ggplot2)
