@@ -2,6 +2,7 @@ dir.work <- '/home/pgrad2/2448355h/My_PhD_Project/Biv_Ext_Mix_Mod'
 dir.data <- '/home/pgrad2/2448355h/My_PhD_Project/00_Dataset/UK_Temp'
 dir.out <- "/home/pgrad2/2448355h/My_PhD_Project/01_Output/Biv_Ext_Mix_Mod/UK_Temp"
 
+
 load_install_packages <- function(packages) {
   for(package in packages){
     # If the package is not installed, install it
@@ -98,6 +99,7 @@ barplot(Tab.par2,,las=2)
 # Take the negative residuals as the input for the bivariate extreme mixture model.
 Y.fit <- -Y
 
+source(file.path(dir.work, 'UK_Temp','BEMM_Function_Temp.R'))
 NumberOfCluster <- 3
 cl <- makeCluster(NumberOfCluster)
 registerDoSNOW(cl)
@@ -117,4 +119,6 @@ print(t2-t1)
 ## v1 corrects the prior of the mu.
 # save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v1.RData')) 
 ## v2 add the constraints to obtain a finite marginal expectation
-save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v2.RData')) 
+# save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v2.RData')) 
+# v3 new prior with reparametrasation in threshold and sigma
+save(chain_res, file=file.path(dir.out, filename='east-sussex_oxfordshire_0.8_0.99_v3.RData'))
