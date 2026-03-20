@@ -12,3 +12,6 @@ nohup.out
 .Rproj.user
 *.RData
 /Simulation_New/*.RData
+Simulation_New/
+Stock_Indices/
+US_Precipitation/
