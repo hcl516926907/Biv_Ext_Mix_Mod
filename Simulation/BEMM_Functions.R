@@ -347,75 +347,210 @@ run_MCMC_parallel <- function(seed, dat, niter, nburnin, thin){
   assign('uppertri_mult_diag', uppertri_mult_diag, envir = .GlobalEnv)
   
   BivExtMixcode <- nimbleCode({
-    for (i in 1:D)
-      sds[i] ~ dunif(0, 100)
+    for (dd in 1:D)
+      sds[dd] ~ dunif(0, 50)
+    
     Ustar[1:D,1:D] ~ dlkj_corr_cholesky(1.3, D)
     U[1:D,1:D] <- uppertri_mult_diag(Ustar[1:D, 1:D], sds[1:D])
     
-    for (i in 1:D)
-      mu[i] ~ dnorm(0, sd=50)
+    for (dd in 1:D)
+      mu[dd] ~ dnorm(0, sd=50)
     
-    for (i in 1:D)
-      thres[i] ~ T(dnorm(mu.thres[i], sd=sd.thres[i]),min.thres[i],max.thres[i])
-    
-    if (station.ind){
-      # priors for sig
-      for (i in 1:5)
-        theta[i] ~ dunif(0,50)
-      # priors for gamma 
-      for (i in 6:7)
-        theta[i] ~ dunif(-1,1)
-      y[1:N,1:D] ~ dbiextmix(theta=theta[1:7], thres=thres[1:D], mu=mu[1:D], 
-                             cholesky=U[1:D,1:D], D=D,
-                             a.ind=a.ind[1:D], lam.ind=lam.ind, lamfix=lamfix, 
-                             sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
-    }else{
-      for (i in 1:2)
-        para.mg[i] ~ dunif(0,50)
-      for (i in 3:4)
-        para.mg[i] ~ dunif(-1,1)
-      for (i in 1:D){
-        beta.a[1:D.pred,i] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
-        beta.b[1:D.pred,i] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
-      }
-      y[1:N,1:D] ~ dbiextmix_ns(para.mg=para.mg[1:4], beta.a=beta.a[1:D.pred,1:D],
-                                beta.b=beta.b[1:D.pred,1:D], thres=thres[1:2],
-                                X=X[1:N,1:(D*D.pred)], mu=mu[1:D], 
-                                cholesky=U[1:D,1:D], D=D,
-                                a.ind=a.ind[1:D], lam.ind=lam.ind, lamfix=lamfix, 
-                                sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
+    ## categorical threshold prior
+    for (dd in 1:D) {
+      delta_thres[dd] ~ T(dnorm(0, sd = 10), 0, Inf)  # half-normal
+      thres[dd] <- q_ref[dd] + delta_thres[dd]
     }
     
-    
+    if (station.ind){
+      # priors for a
+      for (jj in 1:2)
+        theta[jj] ~ T(dnorm(0, sd = 50), 0, Inf)
+      
+      ## priors for b
+      theta[3] ~ T(dnorm(0, sd = 50), 0, Inf)
+      
+      ## priors for gamma (theta[6:7])
+      for (jj in 6:7)
+        theta[jj] ~ dunif(-1,1)
+      
+      for (jj in 1:2) {
+        ## half-normal prior on sigma_j translated into tildeSigma_j
+        tildeSigma[jj] ~ T(
+          dnorm(-theta[jj+5] * thres[jj], sd = 50),
+          -theta[jj+5] * thres[jj],   # lower bound
+          Inf                       # upper bound
+        )
+        theta[jj+3] <- tildeSigma[jj] + theta[jj+5] * thres[jj]
+        ## so: theta[4] = tildeSigma[1] + theta[6]*thres[1]
+        ##      theta[5] = tildeSigma[2] + theta[7]*thres[2]
+      }
+      
+      
+      # for (jj in 1:2)
+      #   theta[jj] ~ dunif(0,50)
+      # for (jj in 3:5)
+      #   theta[jj] ~ dunif(0,50)
+      # for (jj in 6:7)
+      #   theta[jj] ~ dunif(-1,1)
+      
+      constraint_data1 ~ dconstraint( theta[6] + 1/theta[1] > 0 )
+      constraint_data2 ~ dconstraint( theta[7] + 1/theta[2] > 0 )
+      
+      y[1:N,1:D] ~ dbiextmix(theta=theta[1:7], thres=thres[1:D], mu=mu[1:D],
+                             cholesky=U[1:D,1:D], D=D,
+                             a.ind=a.ind[1:D], lam.ind=lam.ind, lamfix=lamfix,
+                             sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
+    } else {
+      for (jj in 1:2)
+        para.mg[jj] ~ dunif(0,50)
+      for (jj in 3:4)
+        para.mg[jj] ~ dunif(-1,1)
+      
+      for (dd in 1:D){
+        beta.a[1:D.pred,dd] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
+        beta.b[1:D.pred,dd] ~ dmnorm(mu_beta[1:D.pred], cov=cov_beta[1:D.pred,1:D.pred])
+      }
+      
+      y[1:N,1:D] ~ dbiextmix_ns(para.mg=para.mg[1:4], beta.a=beta.a[1:D.pred,1:D],
+                                beta.b=beta.b[1:D.pred,1:D], thres=thres[1:2],
+                                X=X[1:N,1:(D*D.pred)], mu=mu[1:D],
+                                cholesky=U[1:D,1:D], D=D,
+                                a.ind=a.ind[1:D], lam.ind=lam.ind, lamfix=lamfix,
+                                sig.ind=sig.ind[1:D], gamma.ind=gamma.ind[1:D])
+    }
   })
+  set.seed(seed)
+  # [1] "Ustar[1, 1]" "Ustar[2, 1]" "Ustar[1, 2]" "Ustar[2, 2]"
+  # [5] "mu[1]"       "mu[2]"       "sds[1]"      "sds[2]"     
+  # [9] "theta[1]"    "theta[2]"    "theta[3]"    "theta[4]"   
+  # [13] "theta[5]"    "theta[6]"    "theta[7]"    "thres[1]"   
+  # [17] "thres[2]" 
+  
+  
+  n <- nrow(dat)
+  D <- ncol(dat)
+  
+  # m_min <- 1   # example: at least 30 exceedances
+  # m_max <- floor(0.2*n)  # example: at most 200 exceedances
+  # stopifnot(m_max < n, m_min >= 1, m_min <= m_max)
+  # 
+  # idx <- (n - m_max):(n - m_min)  # order-stat indices (ascending data)
+  # K <- length(idx)
+  # 
+  # thres_vals <- matrix(NA_real_, nrow = D, ncol = K)
+  # for (j in 1:D) {
+  #   xs <- sort(dat[, j])
+  #   thres_vals[j, ] <- xs[idx]
+  # }
+  # 
+  # # independent categorical priors; uniform weights (can change if you want)
+  # prob_thres <- matrix(1 / K, nrow = D, ncol = K)
+  # 
+  # #use a coarser grid of candidate threshold. Kkeep every 10th candidate
+  # keep <- seq(1, K, by = 20)
+  # thres_vals <- thres_vals[, keep, drop = FALSE]
+  # prob_thres <- prob_thres[, keep, drop = FALSE]
+  # K <- ncol(thres_vals)
+  # print(keep)
+  
+  delta0 <- runif(2)
+  q_ref <- apply(dat, 2, quantile, probs = 0.8, na.rm = TRUE)
+  
+  # implied initial thresholds
+  thres0 <- q_ref + delta0
+  
+  # thres_ind0 = sample.int(K, 2, replace = TRUE)
+  # thres0  <- runif(2, 2, 5)   # thresholds
+  gamma0  <- runif(2, -0.5, 0.5)         # theta[6:7]
+  sigma0  <- runif(2, 0.5, 5)            # sigma = theta[4:5]
+  tilde0  <- sigma0 - gamma0 * thres0    # ensures sigma0 = tilde0 + gamma0*thres0 >= 0
+  
+  Inits <- list(
+    ## IMPORTANT: these must match the *stochastic* nodes, so use Ustar, not U
+    Ustar = matrix(c(1, 0, 0, 1), nrow = 2),
+    sds   = runif(2, 0.5, 5),
+    mu    = runif(2, -5, 5),
+    
+    ## theta[1:3] are still stochastic, theta[4:5] are deterministic now
+    theta = c(
+      runif(2, 0, 5),   # theta[1:2] (a's)
+      runif(1, 0, 5),   # theta[3]   (b)
+      sigma0,           # theta[4:5] (will be overwritten, but consistent with tilde0/gamma0/thres0)
+      gamma0            # theta[6:7] (gammas)
+    ),
+    
+    ## new stochastic nodes
+    tildeSigma = tilde0
+    
+    # thres_ind =  thres_ind0  # indices in 1..K
+  )
+  
+  
+  # Inits <- list(
+  #   U = matrix(c(1,0,runif(2,0,1)), nrow=2),
+  #   mu = runif(2, -5, 5),
+  #   sds = runif(2, 0.5, 5),
+  #   theta = c(runif(5,0,5), runif(2,0,1)),
+  #   thres_ind = sample.int(K, 2, replace = TRUE)  # indices in 1..K
+  # )
+  
   
   BivExtMixmodel <- nimbleModel(BivExtMixcode, constants = list(N = nrow(dat), 
                                                                 D = 2,
                                                                 station.ind = TRUE,
                                                                 D.pred = 2,
                                                                 X = matrix(1,nrow=nrow(dat),ncol=2),
-                                                                mu.thres = apply(dat,2,quantile,0.9),#90 quantile
-                                                                sd.thres = c(10,10), 
-                                                                min.thres = apply(dat,2,quantile,0.8),
-                                                                max.thres = apply(dat,2,quantile,0.99),
+                                                                
+                                                                # K = K,
+                                                                # 
+                                                                # prob_thres = prob_thres, 
+                                                                q_ref = q_ref,        
+                                                                
                                                                 mu_beta = rep(0,2),
                                                                 cov_beta = 100*diag(2),
                                                                 a.ind = 1:2,
                                                                 lam.ind = 3,
                                                                 sig.ind = c(4,5),
                                                                 gamma.ind = c(6,7),
-                                                                lamfix=TRUE),check = FALSE)
+                                                                lamfix=TRUE),
+                                
+                                # dimensions = list(
+                                #   y = c(nrow(dat), 2),
+                                #   thres_vals = c(2, K),
+                                #   prob_thres = c(2, K),
+                                #   thres_ind = c(2),
+                                #   thres = c(2)
+                                # ),
+                                check = FALSE)
   
   
-  BivExtMixmodel$setData(list(y = dat))  ## Set those values as data in the model
+  BivExtMixmodel$setData(list(y = dat, 
+                              constraint_data1=1, 
+                              constraint_data2=1 
+                              # thres_vals = thres_vals
+  ))       # D x K numeric matrix))  ## Set those values as data in the model
+  BivExtMixmodel$setInits(Inits)  
   cBivExtMixmodel <- compileNimble(BivExtMixmodel, showCompilerOutput = TRUE)
-
+  
   BivExtMixconf <- configureMCMC(BivExtMixmodel,
                                  enableWAIC = TRUE, time=TRUE)
-  # BivExtMixconf$removeSamplers(c('theta[1:7]', 'thres[1:2]'))
-  # BivExtMixconf$addSampler(target = c('theta[1:7]', 'thres[1:2]'), type = 'AF_slice')
   
+  BivExtMixconf$addMonitors(c("thres"))   
+  
+  
+  BivExtMixconf$removeSamplers("delta_thres[1:2]")
+  BivExtMixconf$removeSamplers("theta[1:2]")
+  BivExtMixconf$removeSamplers("theta[6:7]")
+  BivExtMixconf$removeSamplers("tildeSigma[1:2]")
+  
+  # add slice samplers for each index
+  BivExtMixconf$addSampler(target = c('theta[1:2]','theta[6:7]','tildeSigma[1:2]','delta_thres[1:2]'), type = 'AF_slice')
+  # BivExtMixconf$addSampler("thres_ind[1]", type = "slice")
+  # BivExtMixconf$addSampler("thres_ind[2]", type = "slice")
+  # 
   BivExtMixMCMC <- buildMCMC(BivExtMixconf)
+  BivExtMixconf$printSamplers()
   # BivExtMixMCMC$run(1)
   cBivExtMixMCMC <- compileNimble(BivExtMixMCMC, project = BivExtMixmodel, showCompilerOutput = TRUE)
   
